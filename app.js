@@ -4,11 +4,7 @@
   // Elements
   const els = {
     tabs: document.querySelectorAll('.tab'),
-    pages: {
-      chat: $('page_chat'),
-      editor: $('page_editor'),
-      gallery: $('page_gallery')
-    },
+    pages: { chat: $('page_chat'), editor: $('page_editor'), gallery: $('page_gallery') },
     // chat
     chat: $('chat'), userInput: $('userInput'),
     send: $('send'), stop: $('stop'),
@@ -63,7 +59,6 @@
     els.pages[t.dataset.tab].classList.add('active');
     location.hash = t.dataset.tab;
   }));
-  // Restore tab on reload
   if(location.hash){
     const k = location.hash.replace('#','');
     const tab = [...els.tabs].find(x => x.dataset.tab === k);
@@ -105,6 +100,7 @@
     } catch(e){ alert('감정 매핑 JSON 오류: '+e.message); return; }
     save('lore', state.lore);
     alert('저장됨');
+    renderGallery(); // 태그 키 바뀌었을 수 있음
   };
 
   // --- Chat
@@ -112,7 +108,7 @@
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
     const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
-    return exts.map(ext => `${base}/${key}${ext}`)[0]; // 단순 반환(브라우저가 로드 실패시 무시)
+    return `${base}/${key}${exts[0]}`; // 브라우저가 실패 이미지는 무시
   }
   function renderChat(){
     els.chat.innerHTML='';
@@ -213,23 +209,99 @@
     const base = (els.assetsBase.value || 'assets/reze').replace(/\/$/,'');
     const manifest = els.manifestPath.value.trim();
     let files = [];
+
+    // 1) manifest.json 읽기
     try{
       const resp = await fetch(manifest,{cache:'no-store'});
       if(resp.ok){
-        files = await resp.json(); if(!Array.isArray(files)) files=[];
-        files = files.map(f => f.startsWith('http')||f.startsWith('/') ? f : `${base}/${f}`);
+        files = await resp.json();
+        if(!Array.isArray(files)) files = [];
       }
     }catch(_){}
+
+    // 2) manifest가 없으면 emotionMap 키로 추정 경로(선택)
     if(files.length===0){
       const keys = Object.values(state.lore.emotionMap||{});
       const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
       keys.forEach(k => exts.forEach(ext => files.push(`${base}/${k}${ext}`)));
     }
-    const seen=new Set();
-    files.filter(Boolean).forEach(p => {
-      if(seen.has(p)) return; seen.add(p);
-      const img=document.createElement('img'); img.src=p; img.alt=p;
-      els.gallery.appendChild(img);
+
+    // 3) 정규화(문자열 or {src,tag})
+    const normalize = f => (typeof f === 'string')
+      ? { src: (f.startsWith('http')||f.startsWith('/')) ? f : `${base}/${f}`, tag: tagFromPath(f) }
+      : { src: (f.src && (f.src.startsWith('http')||f.src.startsWith('/'))) ? f.src : `${base}/${f.src}`, tag: f.tag || tagFromPath(f.src) };
+
+    const seen = new Set();
+    files.map(normalize).forEach(({src,tag})=>{
+      if(seen.has(src)) return; seen.add(src);
+      const item = document.createElement('div'); item.className = 'item';
+      const img  = document.createElement('img'); img.src = src; img.alt = tag || src;
+      const cap  = document.createElement('div'); cap.className = 'caption'; cap.textContent = tag || src;
+      item.appendChild(img); item.appendChild(cap);
+      item.addEventListener('click', ()=> openLightbox(src, tag||src));
+      els.gallery.appendChild(item);
     });
   }
+
+  // 4) 파일명 → 태그
+  function tagFromPath(p){
+    try{
+      const fn = (typeof p==='string'?p:'').split('/').pop().split('?')[0];
+      return fn.replace(/\.[a-z0-9]+$/i,'').replace(/^reze[_-]?/i,'').replace(/[_-]+/g,' ').trim();
+    }catch{ return p; }
+  }
+
+  // 5) 라이트박스
+  function openLightbox(src, title){
+    $('lightboxImg').src = src;
+    $('lightboxTitle').textContent = title || '';
+    $('lightbox').classList.add('active');
+  }
+  window.openLightbox = openLightbox; // 내부에서 사용
+
+  $('lightboxClose').onclick = ()=> $('lightbox').classList.remove('active');
+  $('lightbox').addEventListener('click', e=>{
+    if(e.target && e.target.id === 'lightbox') $('lightbox').classList.remove('active');
+  });
+
+  // --- BGM
+  const bgm = load('bgm', { url:'', loop:true, vol:0.4 });
+  const audio = $('bgmAudio');
+  function syncBgmUI(){
+    $('bgmUrl').value = bgm.url || '';
+    $('bgmLoop').checked = !!bgm.loop;
+    $('bgmVol').value = bgm.vol ?? 0.4;
+    audio.loop = !!bgm.loop;
+    audio.volume = bgm.vol ?? 0.4;
+    if(bgm.url) audio.src = bgm.url;
+  }
+  syncBgmUI();
+
+  $('bgmSave').onclick = ()=>{
+    bgm.url  = $('bgmUrl').value.trim();
+    bgm.loop = $('bgmLoop').checked;
+    bgm.vol  = Number($('bgmVol').value)||0.4;
+    save('bgm', bgm);
+    syncBgmUI();
+    alert('BGM 저장됨');
+  };
+  $('bgmVol').oninput = (e)=>{
+    audio.volume = Number(e.target.value)||0.4;
+    bgm.vol = audio.volume; save('bgm', bgm);
+  };
+  $('bgmLoop').onchange = (e)=>{
+    audio.loop = e.target.checked; bgm.loop = audio.loop; save('bgm', bgm);
+  };
+  $('bgmPlay').onclick = ()=>{
+    if(!audio.src){
+      bgm.url = $('bgmUrl').value.trim();
+      if(!bgm.url) return alert('BGM URL을 입력하세요');
+      audio.src = bgm.url; save('bgm', bgm);
+    }
+    if(audio.paused){
+      audio.play().catch(()=> alert('브라우저가 자동재생을 막았습니다. 재생 버튼을 눌러 주세요.'));
+    } else {
+      audio.pause();
+    }
+  };
 })();
