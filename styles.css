@@ -49,6 +49,22 @@ input[type=text],input[type=password],textarea{width:100%;background:#0b111b;bor
 textarea{min-height:120px;resize:vertical}
 .card{background:#0b111b;border:1px solid var(--border);border-radius:12px;padding:12px}
 
-/* Gallery */
+/* Gallery grid */
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
-.gallery img{width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--border)}
+.gallery .item{position:relative;background:#0b111b;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.gallery .item img{width:100%;height:140px;object-fit:cover;display:block}
+.gallery .caption{font-size:12px;padding:6px 8px;border-top:1px solid var(--border);color:#cfd8ea}
+.gallery .item:hover{outline:1px solid #2a4772;cursor:zoom-in}
+
+/* Lightbox */
+.lightbox{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.7);backdrop-filter:saturate(120%) blur(2px);z-index:9999}
+.lightbox.active{display:grid}
+.lightbox .frame{max-width:min(92vw,1100px);max-height:88vh;background:#0b111b;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+.lightbox header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);background:#0f1520}
+.lightbox header .title{font-size:14px;color:#e7ecf3}
+.lightbox .body{padding:0}
+.lightbox .body img{display:block;max-width:100%;max-height:78vh;margin:auto}
+
+/* BGM slider */
+.range{appearance:none;width:100%;height:6px;border-radius:6px;background:#0d1420;border:1px solid var(--border)}
+.range::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:#5b9cf6}
