@@ -33,6 +33,7 @@
       <span class="tag">Model</span>
       <input id="miniModel" type="text" value="gemini-2.5-pro" />
       <button class="btn" id="miniSave">저장</button>
+      <button class="btn" id="miniTest">테스트</button>
       <div class="muted" id="miniState"></div>
     </div>
 
@@ -69,11 +70,29 @@
       <textarea id="charPrompt" placeholder="레제의 성격·말버릇·금지어·롤플 규칙"></textarea>
       <label><input type="checkbox" id="lockChar"> 대화마다 자동주입</label>
     </div>
+
     <div class="card">
       <h3>감정 매핑(JSON)</h3>
       <p class="muted">예: {"happy":"reze_happy","sad":"reze_sad","angry":"reze_angry","neutral":"reze_neutral"}</p>
       <textarea id="emotionMap"></textarea>
       <div class="row" style="margin-top:8px"><button class="btn" id="saveLore">저장</button></div>
+    </div>
+
+    <div class="card" style="grid-column:1 / -1">
+      <h3>아바타</h3>
+      <label>사용자 아바타 URL (기본: assets/reze/profile/user.png)</label>
+      <input id="userAvatar" type="text" placeholder="assets/reze/profile/user.png" />
+      <label>레제 아바타 URL (기본: assets/reze/profile/reze.png)</label>
+      <input id="assistantAvatar" type="text" placeholder="assets/reze/profile/reze.png" />
+      <div class="row" style="margin-top:8px"><button class="btn" id="saveAvatars">아바타 저장</button></div>
+    </div>
+
+    <div class="card" style="grid-column:1 / -1">
+      <h3>첫 메시지(그리팅)</h3>
+      <label>문구</label>
+      <textarea id="greetingText" placeholder="예: <emotion:happy> 안녕! 난 레제."></textarea>
+      <label><input type="checkbox" id="greetingOn"> 새 대화 시작 시 자동 표시</label>
+      <div class="row" style="margin-top:8px"><button class="btn" id="saveGreeting">그리팅 저장</button></div>
     </div>
   </section>
 
@@ -95,7 +114,7 @@
 
     <div class="card" style="grid-column:1 / -1">
       <h3>BGM</h3>
-      <p class="muted">MP3를 <code>assets/bgm/track.mp3</code>로 넣으면 자동재생됩니다. 막히면 아래 버튼이 뜹니다.</p>
+      <p class="muted">MP3를 <code>assets/bgm/track.mp3</code>로 넣으면 자동재생 시도. 막히면 우하단 버튼 표시.</p>
       <label>URL (고정)</label>
       <input id="bgmUrl" type="text" value="assets/bgm/track.mp3" readonly />
       <div class="row" style="margin-top:8px">
