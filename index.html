@@ -82,10 +82,8 @@
     <div class="card" style="grid-column:1 / -1">
       <h3>이미지 갤러리</h3>
       <p class="muted">
-        권장: <code>assets/reze/manifest.json</code><br>
-        문자열 배열 또는 객체 배열 지원. 예시:<br>
-        <code>["reze_happy.gif","reze_angry.gif"]</code><br>
-        <code>[{"src":"reze_happy.gif","tag":"happy"}]</code>
+        권장: <code>assets/reze/manifest.json</code> (문자열 배열 또는 객체 배열).<br>
+        예: <code>["reze_happy.gif","reze_angry.gif"]</code> 또는 <code>[{"src":"reze_happy.gif","tag":"happy"}]</code>
       </p>
       <div class="row">
         <input id="assetsBase" type="text" placeholder="assets/reze" value="assets/reze" />
@@ -97,16 +95,15 @@
 
     <div class="card" style="grid-column:1 / -1">
       <h3>BGM</h3>
-      <p class="muted">예: <code>assets/bgm/track.mp3</code> 넣고 아래에 경로 입력 → 저장 → 재생.</p>
-      <label>URL</label>
-      <input id="bgmUrl" type="text" placeholder="assets/bgm/track.mp3" />
+      <p class="muted">MP3를 <code>assets/bgm/track.mp3</code>로 넣으면 자동재생됩니다. 막히면 아래 버튼이 뜹니다.</p>
+      <label>URL (고정)</label>
+      <input id="bgmUrl" type="text" value="assets/bgm/track.mp3" readonly />
       <div class="row" style="margin-top:8px">
         <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="bgmLoop" checked/> 반복</label>
         <input id="bgmVol" type="range" min="0" max="1" step="0.01" class="range" style="flex:1" value="0.4"/>
         <button class="btn" id="bgmPlay">재생/일시정지</button>
-        <button class="btn" id="bgmSave">저장</button>
       </div>
-      <audio id="bgmAudio" preload="none"></audio>
+      <audio id="bgmAudio" preload="auto" playsinline></audio>
     </div>
   </section>
 </div>
@@ -121,6 +118,9 @@
     <div class="body"><img id="lightboxImg" alt="preview"></div>
   </div>
 </div>
+
+<!-- Autoplay fallback button -->
+<button id="bgmUnmute" class="floating" style="display:none">🔊 BGM 켜기</button>
 
 <script src="app.js"></script>
 </body>
