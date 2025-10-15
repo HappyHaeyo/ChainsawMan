@@ -100,7 +100,7 @@
     } catch(e){ alert('감정 매핑 JSON 오류: '+e.message); return; }
     save('lore', state.lore);
     alert('저장됨');
-    renderGallery(); // 태그 키 바뀌었을 수 있음
+    renderGallery();
   };
 
   // --- Chat
@@ -108,7 +108,7 @@
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
     const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
-    return `${base}/${key}${exts[0]}`; // 브라우저가 실패 이미지는 무시
+    return `${base}/${key}${exts[0]}`;
   }
   function renderChat(){
     els.chat.innerHTML='';
@@ -135,13 +135,13 @@
   }
   function addMsg(role,content,meta={}){ state.messages.push({role,content,meta}); save('messages',state.messages); renderChat(); }
 
+  // Send via Gemini
   let controller=null;
   async function send(){
     const content = els.userInput.value.trim();
     if(!content) return;
     els.userInput.value=''; addMsg('user',content);
 
-    // system injection
     const L = state.lore;
     const sysPieces=[];
     if(L.lockSystem && L.systemPrompt) sysPieces.push(L.systemPrompt);
@@ -219,7 +219,7 @@
       }
     }catch(_){}
 
-    // 2) manifest가 없으면 emotionMap 키로 추정 경로(선택)
+    // 2) manifest 없으면 emotionMap 키로 추정 경로
     if(files.length===0){
       const keys = Object.values(state.lore.emotionMap||{});
       const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
@@ -243,7 +243,6 @@
     });
   }
 
-  // 4) 파일명 → 태그
   function tagFromPath(p){
     try{
       const fn = (typeof p==='string'?p:'').split('/').pop().split('?')[0];
@@ -251,40 +250,52 @@
     }catch{ return p; }
   }
 
-  // 5) 라이트박스
+  // --- Lightbox
   function openLightbox(src, title){
     $('lightboxImg').src = src;
     $('lightboxTitle').textContent = title || '';
     $('lightbox').classList.add('active');
   }
-  window.openLightbox = openLightbox; // 내부에서 사용
-
+  window.openLightbox = openLightbox;
   $('lightboxClose').onclick = ()=> $('lightbox').classList.remove('active');
   $('lightbox').addEventListener('click', e=>{
     if(e.target && e.target.id === 'lightbox') $('lightbox').classList.remove('active');
   });
 
-  // --- BGM
-  const bgm = load('bgm', { url:'', loop:true, vol:0.4 });
+  // --- BGM (autoplay with fallback)
+  const DEFAULT_BGM = 'assets/bgm/track.mp3';
+  const bgm = load('bgm', { url: DEFAULT_BGM, loop:true, vol:0.4 });
+  if (!bgm.url) { bgm.url = DEFAULT_BGM; save('bgm', bgm); }
   const audio = $('bgmAudio');
+  const unmuteBtn = $('bgmUnmute');
+
   function syncBgmUI(){
-    $('bgmUrl').value = bgm.url || '';
+    $('bgmUrl').value = bgm.url;
     $('bgmLoop').checked = !!bgm.loop;
     $('bgmVol').value = bgm.vol ?? 0.4;
     audio.loop = !!bgm.loop;
     audio.volume = bgm.vol ?? 0.4;
-    if(bgm.url) audio.src = bgm.url;
+    audio.src = bgm.url;
   }
   syncBgmUI();
 
-  $('bgmSave').onclick = ()=>{
-    bgm.url  = $('bgmUrl').value.trim();
-    bgm.loop = $('bgmLoop').checked;
-    bgm.vol  = Number($('bgmVol').value)||0.4;
-    save('bgm', bgm);
-    syncBgmUI();
-    alert('BGM 저장됨');
-  };
+  async function tryAutoplay(){
+    try{
+      await audio.play();
+      if (unmuteBtn) unmuteBtn.style.display = 'none';
+    }catch{
+      if (unmuteBtn) unmuteBtn.style.display = 'inline-flex';
+    }
+  }
+  document.addEventListener('DOMContentLoaded', tryAutoplay);
+  ['pointerdown','keydown'].forEach(ev=>{
+    window.addEventListener(ev, tryAutoplay, { once:true, capture:true });
+  });
+  if (unmuteBtn){
+    unmuteBtn.onclick = async () => { await tryAutoplay(); };
+  }
+
+  // Optional controls
   $('bgmVol').oninput = (e)=>{
     audio.volume = Number(e.target.value)||0.4;
     bgm.vol = audio.volume; save('bgm', bgm);
@@ -293,15 +304,7 @@
     audio.loop = e.target.checked; bgm.loop = audio.loop; save('bgm', bgm);
   };
   $('bgmPlay').onclick = ()=>{
-    if(!audio.src){
-      bgm.url = $('bgmUrl').value.trim();
-      if(!bgm.url) return alert('BGM URL을 입력하세요');
-      audio.src = bgm.url; save('bgm', bgm);
-    }
-    if(audio.paused){
-      audio.play().catch(()=> alert('브라우저가 자동재생을 막았습니다. 재생 버튼을 눌러 주세요.'));
-    } else {
-      audio.pause();
-    }
+    if(audio.paused){ audio.play().catch(()=>{}); } else { audio.pause(); }
   };
+
 })();
