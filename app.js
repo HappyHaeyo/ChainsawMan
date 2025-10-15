@@ -9,12 +9,14 @@
     chat: $('chat'), userInput: $('userInput'),
     send: $('send'), stop: $('stop'),
     miniApiKey: $('miniApiKey'), miniModel: $('miniModel'),
-    miniSave: $('miniSave'), miniState: $('miniState'),
+    miniSave: $('miniSave'), miniTest: $('miniTest'), miniState: $('miniState'),
     // editor
     systemPrompt: $('systemPrompt'), worldInfo: $('worldInfo'),
     charName: $('charName'), charPrompt: $('charPrompt'),
     lockSystem: $('lockSystem'), lockWorld: $('lockWorld'), lockChar: $('lockChar'),
     emotionMap: $('emotionMap'), saveLore: $('saveLore'),
+    userAvatar: $('userAvatar'), assistantAvatar: $('assistantAvatar'), saveAvatars: $('saveAvatars'),
+    greetingText: $('greetingText'), greetingOn: $('greetingOn'), saveGreeting: $('saveGreeting'),
     // gallery
     assetsBase: $('assetsBase'), manifestPath: $('manifestPath'),
     reload: $('reload'), gallery: $('gallery'),
@@ -23,15 +25,21 @@
     importChat: $('importChat'), importChatFile: $('importChatFile'),
   };
 
-  // State
+  // State (초기 기본값 포함)
   const state = {
-    settings: load('settings', { apiKey:'', model:'gemini-2.5-pro' }),
+    settings: load('settings', {
+      apiKey:'', model:'gemini-2.5-pro',
+      userAvatar:'assets/reze/profile/user.png',
+      assistantAvatar:'assets/reze/profile/reze.png'
+    }),
     lore: load('lore', {
       systemPrompt:'응답 첫 줄에 <emotion:neutral> 태그 1개. 감정 키: happy/sad/angry/neutral. 한국어로 간결히 답하기.',
       worldInfo:'', charName:'레제',
       charPrompt:'레제 말투: 담담+장난기. 과한 애교 금지. 금지: 현실 개인정보 요구.',
       lockSystem:true, lockWorld:true, lockChar:true,
-      emotionMap:{ happy:'reze_happy', sad:'reze_sad', angry:'reze_angry', neutral:'reze_neutral' }
+      emotionMap:{ happy:'reze_happy', sad:'reze_sad', angry:'reze_angry', neutral:'reze_neutral' },
+      greetingText:'<emotion:neutral> 안녕! 난 레제야.',
+      greetingOn:true
     }),
     messages: load('messages', [])
   };
@@ -73,6 +81,10 @@
     ['systemPrompt','worldInfo','charName','charPrompt'].forEach(k => els[k].value = L[k] ?? '');
     els.lockSystem.checked = L.lockSystem; els.lockWorld.checked = L.lockWorld; els.lockChar.checked = L.lockChar;
     els.emotionMap.value = JSON.stringify(L.emotionMap || {}, null, 0);
+    els.userAvatar.value = s.userAvatar || '';
+    els.assistantAvatar.value = s.assistantAvatar || '';
+    els.greetingText.value = L.greetingText || '';
+    els.greetingOn.checked = !!L.greetingOn;
     renderChat(); renderGallery();
   }
   sync();
@@ -85,6 +97,24 @@
     els.miniState.textContent = '저장됨';
     setTimeout(()=> els.miniState.textContent='', 1200);
   };
+  els.miniTest.onclick = async () => {
+    const key = (els.miniApiKey.value || '').trim();
+    if(!key){ els.miniState.textContent='API Key 필요'; return; }
+    els.miniState.textContent = '테스트 중...';
+    try{
+      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+      const r = await fetch(url);
+      if(!r.ok){
+        const t = await r.text();
+        els.miniState.textContent = '실패: ' + (t || r.statusText);
+      }else{
+        els.miniState.textContent = '연결 OK';
+      }
+    }catch(e){
+      els.miniState.textContent = '에러: ' + e.message;
+    }
+    setTimeout(()=> els.miniState.textContent='', 4000);
+  };
 
   // --- Editor save
   els.saveLore.onclick = () => {
@@ -95,20 +125,33 @@
     state.lore.lockSystem   = els.lockSystem.checked;
     state.lore.lockWorld    = els.lockWorld.checked;
     state.lore.lockChar     = els.lockChar.checked;
-    try {
-      state.lore.emotionMap = JSON.parse(els.emotionMap.value || '{}');
-    } catch(e){ alert('감정 매핑 JSON 오류: '+e.message); return; }
+    try { state.lore.emotionMap = JSON.parse(els.emotionMap.value || '{}'); }
+    catch(e){ alert('감정 매핑 JSON 오류: '+e.message); return; }
     save('lore', state.lore);
-    alert('저장됨');
-    renderGallery();
+    alert('저장됨'); renderGallery();
+  };
+  els.saveAvatars.onclick = ()=>{
+    state.settings.userAvatar = els.userAvatar.value.trim() || 'assets/reze/profile/user.png';
+    state.settings.assistantAvatar = els.assistantAvatar.value.trim() || 'assets/reze/profile/reze.png';
+    save('settings', state.settings);
+    alert('아바타 저장됨'); renderChat();
+  };
+  els.saveGreeting.onclick = ()=>{
+    state.lore.greetingText = els.greetingText.value;
+    state.lore.greetingOn = els.greetingOn.checked;
+    save('lore', state.lore);
+    alert('그리팅 저장됨');
   };
 
   // --- Chat
   function extractEmotion(text=''){ const m=text.match(/<emotion:([a-zA-Z_\-]+)>/); return m? m[1].toLowerCase(): null; }
+  function roleHtml(role){
+    const av = role==='user' ? (state.settings.userAvatar||'') : (state.settings.assistantAvatar||'');
+    return av ? `<img src="${av}" alt="${role}">` : (role==='user'?'U':'A');
+  }
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
-    const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
-    return `${base}/${key}${exts[0]}`;
+    return `${base}/${key}.jpg`; // 단순 기본
   }
   function renderChat(){
     els.chat.innerHTML='';
@@ -116,7 +159,7 @@
       const node = document.createElement('div');
       node.className = 'msg '+m.role;
       node.innerHTML = `
-        <div class="role">${m.role==='user'?'U':'A'}</div>
+        <div class="role">${roleHtml(m.role)}</div>
         <div class="bubble">${md(m.content||'')}</div>`;
       const emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
       if(m.role==='assistant' && emo){
@@ -135,7 +178,7 @@
   }
   function addMsg(role,content,meta={}){ state.messages.push({role,content,meta}); save('messages',state.messages); renderChat(); }
 
-  // Send via Gemini
+  // Send via Gemini (stream)
   let controller=null;
   async function send(){
     const content = els.userInput.value.trim();
@@ -164,7 +207,10 @@
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(payload.model)}:streamGenerateContent?key=${encodeURIComponent(key)}`;
       controller = new AbortController();
       const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal });
-      if(!resp.ok) throw new Error('HTTP '+resp.status+' '+resp.statusText);
+      if(!resp.ok){
+        let detail=''; try{ detail = await resp.text(); }catch(_){}
+        throw new Error(`HTTP ${resp.status} ${resp.statusText} ${detail}`);
+      }
       const reader = resp.body.getReader(); const decoder = new TextDecoder(); let buf='';
       while(true){
         const {done,value}=await reader.read(); if(done) break;
@@ -189,8 +235,16 @@
   els.userInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
   els.stop.onclick = ()=>{ if(controller) controller.abort(); };
 
-  // Chat mgmt
-  els.newChat.onclick = ()=>{ if(confirm('현재 대화를 지우고 새로 시작할까요?')){ state.messages=[]; save('messages',state.messages); renderChat(); } };
+  // Chat mgmt + greeting
+  els.newChat.onclick = ()=>{
+    if(!confirm('현재 대화를 지우고 새로 시작할까요?')) return;
+    state.messages=[]; save('messages',state.messages);
+    if(state.lore.greetingOn && state.lore.greetingText){
+      state.messages.push({role:'assistant', content: state.lore.greetingText});
+      save('messages', state.messages);
+    }
+    renderChat();
+  };
   els.exportChat.onclick = ()=>{ const blob=new Blob([JSON.stringify({messages:state.messages, meta:{date:new Date().toISOString(), model:state.settings.model}},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reze_chat.json'; a.click(); };
   els.importChat.onclick = ()=> els.importChatFile.click();
   els.importChatFile.onchange = e => {
@@ -210,7 +264,6 @@
     const manifest = els.manifestPath.value.trim();
     let files = [];
 
-    // 1) manifest.json 읽기
     try{
       const resp = await fetch(manifest,{cache:'no-store'});
       if(resp.ok){
@@ -219,14 +272,12 @@
       }
     }catch(_){}
 
-    // 2) manifest 없으면 emotionMap 키로 추정 경로
     if(files.length===0){
       const keys = Object.values(state.lore.emotionMap||{});
       const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
       keys.forEach(k => exts.forEach(ext => files.push(`${base}/${k}${ext}`)));
     }
 
-    // 3) 정규화(문자열 or {src,tag})
     const normalize = f => (typeof f === 'string')
       ? { src: (f.startsWith('http')||f.startsWith('/')) ? f : `${base}/${f}`, tag: tagFromPath(f) }
       : { src: (f.src && (f.src.startsWith('http')||f.src.startsWith('/'))) ? f.src : `${base}/${f.src}`, tag: f.tag || tagFromPath(f.src) };
@@ -242,7 +293,6 @@
       els.gallery.appendChild(item);
     });
   }
-
   function tagFromPath(p){
     try{
       const fn = (typeof p==='string'?p:'').split('/').pop().split('?')[0];
@@ -291,11 +341,8 @@
   ['pointerdown','keydown'].forEach(ev=>{
     window.addEventListener(ev, tryAutoplay, { once:true, capture:true });
   });
-  if (unmuteBtn){
-    unmuteBtn.onclick = async () => { await tryAutoplay(); };
-  }
+  if (unmuteBtn){ unmuteBtn.onclick = async () => { await tryAutoplay(); }; }
 
-  // Optional controls
   $('bgmVol').oninput = (e)=>{
     audio.volume = Number(e.target.value)||0.4;
     bgm.vol = audio.volume; save('bgm', bgm);
@@ -307,4 +354,10 @@
     if(audio.paused){ audio.play().catch(()=>{}); } else { audio.pause(); }
   };
 
+  // 첫 로드 시 그리팅 자동 삽입(대화가 비어있으면)
+  if((state.messages||[]).length===0 && state.lore.greetingOn && state.lore.greetingText){
+    state.messages.push({role:'assistant', content: state.lore.greetingText});
+    save('messages', state.messages);
+    renderChat();
+  }
 })();
