@@ -77,13 +77,15 @@
     </div>
   </section>
 
-  <!-- Page 3: Gallery -->
+  <!-- Page 3: Gallery + BGM -->
   <section class="page panel" id="page_gallery">
     <div class="card" style="grid-column:1 / -1">
       <h3>이미지 갤러리</h3>
       <p class="muted">
-        권장: <code>assets/reze/manifest.json</code> (예: ["reze_happy.jpg","reze_sad.gif"]).<br>
-        없으면 감정키 기반 경로를 추정해 로드.
+        권장: <code>assets/reze/manifest.json</code><br>
+        문자열 배열 또는 객체 배열 지원. 예시:<br>
+        <code>["reze_happy.gif","reze_angry.gif"]</code><br>
+        <code>[{"src":"reze_happy.gif","tag":"happy"}]</code>
       </p>
       <div class="row">
         <input id="assetsBase" type="text" placeholder="assets/reze" value="assets/reze" />
@@ -92,7 +94,32 @@
       </div>
       <div id="gallery" class="gallery" style="margin-top:10px"></div>
     </div>
+
+    <div class="card" style="grid-column:1 / -1">
+      <h3>BGM</h3>
+      <p class="muted">예: <code>assets/bgm/track.mp3</code> 넣고 아래에 경로 입력 → 저장 → 재생.</p>
+      <label>URL</label>
+      <input id="bgmUrl" type="text" placeholder="assets/bgm/track.mp3" />
+      <div class="row" style="margin-top:8px">
+        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="bgmLoop" checked/> 반복</label>
+        <input id="bgmVol" type="range" min="0" max="1" step="0.01" class="range" style="flex:1" value="0.4"/>
+        <button class="btn" id="bgmPlay">재생/일시정지</button>
+        <button class="btn" id="bgmSave">저장</button>
+      </div>
+      <audio id="bgmAudio" preload="none"></audio>
+    </div>
   </section>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox" aria-modal="true" role="dialog">
+  <div class="frame">
+    <header>
+      <div class="title" id="lightboxTitle"></div>
+      <button class="btn" id="lightboxClose">닫기</button>
+    </header>
+    <div class="body"><img id="lightboxImg" alt="preview"></div>
+  </div>
 </div>
 
 <script src="app.js"></script>
