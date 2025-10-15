@@ -3,62 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Reze RP – Gemini 2.5 Pro Chat UI</title>
-  <style>
-    :root{ --bg:#0b0f14; --panel:#0f1520; --muted:#7a8aa0; --text:#e7ecf3; --accent:#5b9cf6; --border:#1d2533; --danger:#ff6b6b; --ok:#39d98a; }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,Apple Color Emoji,Noto Color Emoji}
-    .app{display:grid;grid-template-columns:1fr;gap:0;height:100vh}
-    header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02)}
-    header h1{font-size:15px;margin:0;font-weight:600;color:#d5e4ff}
-    .pill{font-size:12px;color:var(--muted)}
-
-    .tabs{display:flex;gap:8px;padding:8px;border-bottom:1px solid var(--border);background:#0c121d}
-    .tab{padding:6px 10px;border:1px solid var(--border);border-bottom:none;border-radius:10px 10px 0 0;background:#0b111b;cursor:pointer;color:#cfe1ff;user-select:none}
-    .tab.active{background:#101827;color:#e7f0ff}
-
-    .page{display:none;height:calc(100vh - 100px)}
-    .page.active{display:grid}
-
-    /* Chat page */
-    .chat-grid{grid-template-rows:auto 1fr auto}
-    #chat{flex:1;overflow:auto;padding:16px}
-    .msg{display:flex;gap:12px;margin:8px 0}
-    .msg .role{flex:0 0 36px;height:36px;border-radius:10px;background:#121926;display:grid;place-items:center;color:#c9d8ff}
-    .msg.user .role{background:#1f2b3f;color:#a7d0ff}
-    .msg.assistant .role{background:#18281f;color:#9ce7be}
-    .bubble{background:#0b111b;border:1px solid var(--border);border-radius:14px;padding:10px 12px;max-width:900px;white-space:pre-wrap;word-break:break-word}
-    .bubble code{background:#111826;padding:2px 4px;border-radius:6px}
-    .bubble pre{background:#0b0f14;border:1px solid #1b2331;padding:10px;border-radius:10px;overflow:auto}
-    .composer{padding:10px;border-top:1px solid var(--border);background:rgba(255,255,255,0.02)}
-    .composer .bar{display:flex;gap:8px}
-    .composer textarea{flex:1;min-height:48px}
-    .composer .stack{display:flex;flex-direction:column;gap:8px}
-
-    .mini-conn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:#0b111b}
-    .mini-conn .tag{font-size:12px;color:#a5b4d6}
-    .mini-conn input{width:230px;background:#09121c;border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:8px}
-
-    /* Config + Lore + Assets pages */
-    .panel{display:grid;grid-template-columns: 1fr 1fr;gap:16px;padding:16px;overflow:auto}
-    label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
-    input[type=text],input[type=password],textarea,select{width:100%;background:#0b111b;border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:10px;outline:none}
-    textarea{min-height:120px;resize:vertical}
-    .card{background:#0b111b;border:1px solid var(--border);border-radius:12px;padding:12px}
-    .row{display:flex;gap:8px}
-    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#0b111b;color:#e7ecf3;cursor:pointer}
-    .btn:hover{border-color:#2a3550}
-    .btn.accent{background:linear-gradient(180deg,#122846,#0e1e38);border-color:#2a4772}
-    .btn.danger{background:#1f1414;border-color:#5a2a2a}
-    .muted{color:#7a8aa0}
-
-    .asset{display:flex;align-items:center;gap:10px;border:1px dashed var(--border);padding:8px;border-radius:12px}
-    .asset img{width:44px;height:44px;border-radius:8px;object-fit:cover}
-
-    .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
-    .gallery img{width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--border)}
-  </style>
+  <title>Reze RP – Gemini 2.5 Pro</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div class="app" id="app">
@@ -71,24 +17,27 @@
       <button class="btn" id="importChat">가져오기</button>
     </div>
   </header>
-  <div class="tabs">
-    <div class="tab active" data-tab="chat">채팅</div>
-    <div class="tab" data-tab="config">연결·파라미터</div>
-    <div class="tab" data-tab="lore">프롬프트·월드·캐릭터</div>
-    <div class="tab" data-tab="assets">감정 이미지</div>
-  </div>
 
-  <!-- CHAT PAGE -->
-  <div class="page chat-grid active" id="page_chat">
+  <!-- Tabs -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="chat">채팅</button>
+    <button class="tab" data-tab="editor">프롬프트·월드·캐릭터</button>
+    <button class="tab" data-tab="gallery">이미지 갤러리</button>
+  </nav>
+
+  <!-- Page 1: Chat -->
+  <section class="page chat-grid active" id="page_chat">
     <div class="mini-conn">
       <span class="tag">API Key</span>
       <input id="miniApiKey" type="password" placeholder="AIza..." />
       <span class="tag">Model</span>
-      <input id="miniModel" type="text" style="width:160px" />
+      <input id="miniModel" type="text" value="gemini-2.5-pro" />
       <button class="btn" id="miniSave">저장</button>
       <div class="muted" id="miniState"></div>
     </div>
+
     <div id="chat"></div>
+
     <div class="composer">
       <div class="bar">
         <textarea id="userInput" placeholder="레제에게 말하기... Shift+Enter 줄바꿈"></textarea>
@@ -97,216 +46,55 @@
           <button class="btn danger" id="stop">중지</button>
         </div>
       </div>
-      <div class="muted" style="margin-top:6px">키는 브라우저 로컬에만 저장됩니다. GitHub Pages에 하드코딩 금지.</div>
+      <div class="muted" style="margin-top:6px">키는 브라우저 로컬에만 저장됩니다. 하드코딩 금지.</div>
     </div>
-  </div>
+  </section>
 
-  <!-- CONFIG PAGE -->
-  <div class="page panel" id="page_config">
-    <div class="card">
-      <h3>연결</h3>
-      <label>Provider</label>
-      <select id="provider">
-        <option value="gemini">Gemini (v1beta)</option>
-      </select>
-      <label>API Key (Google AI Studio)</label>
-      <input id="apiKey" type="password" placeholder="AIza..." />
-      <label>Model</label>
-      <input id="model" type="text" value="gemini-2.5-pro" />
-      <div class="row" style="margin-top:8px">
-        <button class="btn accent" id="saveConn">저장</button>
-        <button class="btn" id="testConn">테스트</button>
-      </div>
-      <div class="muted" id="connState" style="margin-top:6px"></div>
-    </div>
-
-    <div class="card">
-      <h3>파라미터</h3>
-      <div class="row"><div style="flex:1">
-        <label>temperature</label><input id="temperature" type="text" value="0.7">
-      </div><div style="flex:1">
-        <label>top_p</label><input id="top_p" type="text" value="1">
-      </div></div>
-      <div class="row"><div style="flex:1">
-        <label>max_output_tokens</label><input id="max_tokens" type="text" value="1024">
-      </div><div style="flex:1">
-        <label>presence_penalty</label><input id="presence_penalty" type="text" value="0">
-      </div></div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn" id="saveAll">설정 저장</button>
-        <button class="btn danger" id="resetAll">초기화</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- LORE PAGE -->
-  <div class="page panel" id="page_lore">
+  <!-- Page 2: Editor -->
+  <section class="page panel" id="page_editor">
     <div class="card">
       <h3>시스템 프롬프트(고정)</h3>
-      <textarea id="systemPrompt" placeholder="레제의 말투/규칙을 고정합니다. 예: 응답 첫 줄에 <emotion:...> 표기."></textarea>
-      <label><input type="checkbox" id="lockSystem"> 대화마다 자동주입(고정)</label>
+      <textarea id="systemPrompt" placeholder="예: 응답 첫 줄에 <emotion:...> 1개 포함."></textarea>
+      <label><input type="checkbox" id="lockSystem"> 대화마다 자동주입</label>
     </div>
     <div class="card">
       <h3>월드 정보(고정)</h3>
       <textarea id="worldInfo" placeholder="체인소맨 세계관, 시간대, 인물관계 등"></textarea>
-      <label><input type="checkbox" id="lockWorld"> 대화마다 자동주입(고정)</label>
+      <label><input type="checkbox" id="lockWorld"> 대화마다 자동주입</label>
     </div>
     <div class="card">
       <h3>캐릭터(레제) 지침</h3>
-      <label>이름</label>
-      <input id="charName" type="text" value="레제" />
+      <label>이름</label><input id="charName" type="text" value="레제" />
       <label>캐릭터 프롬프트</label>
       <textarea id="charPrompt" placeholder="레제의 성격·말버릇·금지어·롤플 규칙"></textarea>
-      <label><input type="checkbox" id="lockChar"> 대화마다 자동주입(고정)</label>
+      <label><input type="checkbox" id="lockChar"> 대화마다 자동주입</label>
     </div>
-  </div>
+    <div class="card">
+      <h3>감정 매핑(JSON)</h3>
+      <p class="muted">예: {"happy":"reze_happy","sad":"reze_sad","angry":"reze_angry","neutral":"reze_neutral"}</p>
+      <textarea id="emotionMap"></textarea>
+      <div class="row" style="margin-top:8px"><button class="btn" id="saveLore">저장</button></div>
+    </div>
+  </section>
 
-  <!-- ASSETS PAGE -->
-  <div class="page panel" id="page_assets">
-    <div class="card">
-      <h3>감정 이미지 매핑 (리포지토리 폴더 사용)</h3>
-      <p class="muted">권장: 저장소에 <code>/assets/reze/</code> 폴더를 만들고 이미지를 넣으세요. 기본 규칙은 <code>assets/reze/{키}.jpg</code>입니다. (예: <code>reze_happy</code> → <code>assets/reze/reze_happy.jpg</code>) 확장자가 다르면 매핑 표에 직접 경로를 지정하세요.</p>
-      <div class="row">
-        <div style="flex:2"><label>Assets Base</label><input id="assetsBase" type="text" placeholder="assets/reze" value="assets/reze" /></div>
-        <div style="flex:1"><label>미리보기 폭(px)</label><input id="assetWidth" type="text" value="260" /></div>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <input id="assetKey" type="text" placeholder="키 (예: reze_happy)" />
-        <input id="assetPath" type="text" placeholder="상대경로 또는 절대경로 (선택)" />
-        <button class="btn" id="addAsset">매핑 추가/교체</button>
-        <button class="btn" id="exportAssets">내보내기</button>
-        <button class="btn" id="importAssets">가져오기</button>
-        <input id="importAssetsFile" type="file" accept="application/json" style="display:none" />
-      </div>
-      <div id="assetList" style="margin-top:10px;display:grid;gap:8px"></div>
-    </div>
-    <div class="card">
-      <h3>감정 태그 규칙</h3>
-      <p class="muted">모델에게 "응답의 첫 줄에 <code>&lt;emotion:happy&gt;</code> 형태로 감정을 한 개 표기"하라고 지시하세요.</p>
-      <textarea id="emotionMap" placeholder='{"happy":"reze_happy","sad":"reze_sad","angry":"reze_angry"}'></textarea>
-      <button class="btn" id="saveEmotionMap">감정 매핑 저장</button>
-    </div>
-    <div class="card">
+  <!-- Page 3: Gallery -->
+  <section class="page panel" id="page_gallery">
+    <div class="card" style="grid-column:1 / -1">
       <h3>이미지 갤러리</h3>
-      <p class="muted">정적 호스팅(GitHub Pages) 특성상 폴더 목록을 자동으로 읽을 수 없습니다. <code>assets/reze/manifest.json</code> 파일(예: ["reze_happy.jpg","reze_sad.gif"])을 두면 자동으로 불러옵니다. 없으면 매핑 표(state.assets)를 사용합니다.</p>
+      <p class="muted">
+        권장: <code>assets/reze/manifest.json</code> (예: ["reze_happy.jpg","reze_sad.gif"]).<br>
+        없으면 감정키 기반 경로를 추정해 로드.
+      </p>
       <div class="row">
+        <input id="assetsBase" type="text" placeholder="assets/reze" value="assets/reze" />
         <input id="manifestPath" type="text" placeholder="assets/reze/manifest.json" value="assets/reze/manifest.json" />
-        <button class="btn" id="loadManifest">갤러리 새로고침</button>
+        <button class="btn" id="reload">갤러리 새로고침</button>
       </div>
       <div id="gallery" class="gallery" style="margin-top:10px"></div>
     </div>
-  </div>
+  </section>
 </div>
 
-<script>
-(function(){
-  const $=id=>document.getElementById(id);
-  const els = {
-    tabs: document.querySelectorAll('.tab'),
-    pages: { chat: $('page_chat'), config: $('page_config'), lore: $('page_lore'), assets: $('page_assets') },
-    chat: $('chat'), userInput: $('userInput'), send: $('send'), stop: $('stop'),
-    newChat: $('newChat'), exportChat: $('exportChat'), importChat: $('importChat'), importChatFile: $('importChatFile'),
-    provider: $('provider'), apiKey: $('apiKey'), model: $('model'), saveConn: $('saveConn'), testConn: $('testConn'), connState: $('connState'),
-    temperature: $('temperature'), top_p: $('top_p'), max_tokens: $('max_tokens'), presence_penalty: $('presence_penalty'), saveAll: $('saveAll'), resetAll: $('resetAll'),
-    systemPrompt: $('systemPrompt'), worldInfo: $('worldInfo'), charName: $('charName'), charPrompt: $('charPrompt'),
-    lockSystem: $('lockSystem'), lockWorld: $('lockWorld'), lockChar: $('lockChar'),
-    assetsBase: $('assetsBase'), assetWidth: $('assetWidth'), assetKey: $('assetKey'), assetPath: $('assetPath'), addAsset: $('addAsset'), assetList: $('assetList'), exportAssets: $('exportAssets'), importAssets: $('importAssets'), importAssetsFile: $('importAssetsFile'),
-    emotionMap: $('emotionMap'), saveEmotionMap: $('saveEmotionMap'),
-    manifestPath: $('manifestPath'), loadManifest: $('loadManifest'), gallery: $('gallery'),
-    miniApiKey: $('miniApiKey'), miniModel: $('miniModel'), miniSave: $('miniSave'), miniState: $('miniState')
-  };
-
-  const state = {
-    settings: load('settings', { provider:'gemini', apiKey:'', model:'gemini-2.5-pro', temperature:0.7, top_p:1, max_tokens:1024, presence_penalty:0 }),
-    lore: load('lore', { systemPrompt:'응답 첫 줄에 <emotion:neutral> 같은 감정 태그를 1개 포함하세요. 감정 키: happy/sad/angry/neutral/smug. 한국어로 간결히 답하기.', worldInfo:'', charName:'레제', charPrompt:'레제의 말투: 건조하지만 장난기. 과한 애교 금지. 덴지 언급 시 미소 짓는 뉘앙스. 금지: 현실 개인정보 요구.', lockSystem:true, lockWorld:true, lockChar:true }),
-    assetsBase: load('assetsBase', 'assets/reze'),
-    assets: load('assets', {}),
-    emotionMap: load('emotionMap', { happy:'reze_happy', sad:'reze_sad', angry:'reze_angry', neutral:'reze_neutral', smug:'reze_smug' }),
-    messages: load('messages', [])
-  };
-
-  function save(key,val){ localStorage.setItem('reze_'+key, JSON.stringify(val)) }
-  function load(key,def){ try{ return JSON.parse(localStorage.getItem('reze_'+key)) ?? def }catch{ return def } }
-  function el(tag,attrs={},children=[]){ const n=document.createElement(tag); Object.entries(attrs||{}).forEach(([k,v])=>{ if(k==='class') n.className=v; else if(k==='html') n.innerHTML=v; else n.setAttribute(k,v); }); (children||[]).forEach(c=> n.appendChild(typeof c==='string'? document.createTextNode(c): c)); return n }
-  function md(s=''){ s = s.replace(/[&<>]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m])); s = s.replace(/```([\s\S]*?)```/g,(m,code)=>`<pre><code>${code}</code></pre>`); s = s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>'); s = s.replace(/\*([^*]+)\*/g,'<em>$1</em>'); s = s.replace(/`([^`]+)`/g,'<code>$1</code>'); s = s.replace(/\n/g,'<br>'); return s; }
-
-  // Tabs (클릭 시 active 전환 및 페이지 표시)
-  els.tabs.forEach(t=> t.addEventListener('click',()=>{ els.tabs.forEach(x=>x.classList.remove('active')); t.classList.add('active'); Object.values(els.pages).forEach(p=>p.classList.remove('active')); els.pages[t.dataset.tab].classList.add('active'); location.hash = t.dataset.tab; }));
-  if(location.hash){ const k=location.hash.replace('#',''); const tab=[...els.tabs].find(x=>x.dataset.tab===k); if(tab) tab.click(); }
-
-  function syncForms(){ const s=state.settings, L=state.lore; ['provider','apiKey','model','temperature','top_p','max_tokens','presence_penalty'].forEach(k=> els[k].value = s[k] ?? ''); ['systemPrompt','worldInfo','charName','charPrompt'].forEach(k=> els[k].value = L[k] ?? ''); els.lockSystem.checked=L.lockSystem; els.lockWorld.checked=L.lockWorld; els.lockChar.checked=L.lockChar; els.emotionMap.value = JSON.stringify(state.emotionMap); els.assetsBase.value = state.assetsBase; els.miniApiKey.value = s.apiKey || ''; els.miniModel.value = s.model || 'gemini-2.5-pro'; renderAssets(); renderGallery(); renderChat(); }
-  syncForms();
-
-  // Mini connection bar (Chat 상단에서 바로 수정)
-  els.miniSave.onclick=()=>{ state.settings.apiKey = els.miniApiKey.value.trim(); state.settings.model = els.miniModel.value.trim()||'gemini-2.5-pro'; save('settings', state.settings); els.miniState.textContent='저장됨'; setTimeout(()=> els.miniState.textContent='', 1500); };
-
-  // Assets using repo folder
-  function assetUrlForKey(key){ const base = (state.assetsBase||'assets/reze').replace(/\/$/,''); if(state.assets[key]) return state.assets[key]; return `${base}/${key}.jpg`; }
-  function renderAssets(){ els.assetList.innerHTML='';
-    const entries = Object.entries(state.assets);
-    if(entries.length===0){ const hint = el('div',{class:'muted'},[document.createTextNode('매핑이 비어 있습니다. 예: reze_happy → assets/reze/reze_happy.jpg')]); els.assetList.appendChild(hint); return; }
-    entries.forEach(([k,path])=>{ const row = el('div',{class:'asset'},[ el('img',{src:path,alt:k}), el('div',{},[ el('div',{},[document.createTextNode(k)]), el('div',{class:'muted'},[document.createTextNode(path)]) ]), el('button',{class:'btn danger'},['삭제']) ]); row.querySelector('button').onclick=()=>{ delete state.assets[k]; save('assets',state.assets); renderAssets(); renderGallery(); }; els.assetList.appendChild(row); }); }
-  els.addAsset.onclick = ()=>{ const key = els.assetKey.value.trim(); const path = els.assetPath.value.trim(); if(!key) return alert('키를 입력'); state.assets[key] = path || assetUrlForKey(key); save('assets',state.assets); els.assetKey.value=''; els.assetPath.value=''; renderAssets(); renderGallery(); };
-  els.exportAssets.onclick = ()=>{ const blob=new Blob([JSON.stringify(state.assets,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reze_assets.json'; a.click(); };
-  els.importAssets.onclick=()=> els.importAssetsFile.click();
-  els.importAssetsFile.onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const j=JSON.parse(r.result); Object.assign(state.assets,j); save('assets',state.assets); renderAssets(); renderGallery(); }catch(err){ alert('JSON 파싱 실패: '+err.message) } }; r.readAsText(f); };
-  els.assetsBase.onchange = ()=>{ state.assetsBase = els.assetsBase.value.trim()||'assets/reze'; save('assetsBase', state.assetsBase); renderGallery(); };
-
-  // Emotion map
-  els.saveEmotionMap.onclick=()=>{ try{ state.emotionMap = JSON.parse(els.emotionMap.value||'{}'); save('emotionMap',state.emotionMap); alert('감정 매핑 저장됨'); }catch(e){ alert('JSON 오류: '+e.message) } };
-
-  // Save/Reset
-  els.saveConn.onclick = saveAll; els.saveAll.onclick = saveAll;
-  function saveAll(){ ['provider','apiKey','model','temperature','top_p','max_tokens','presence_penalty'].forEach(k=> state.settings[k] = els[k].value); ['systemPrompt','worldInfo','charName','charPrompt'].forEach(k=> state.lore[k] = els[k].value); state.lore.lockSystem=els.lockSystem.checked; state.lore.lockWorld=els.lockWorld.checked; state.lore.lockChar=els.lockChar.checked; state.assetsBase = els.assetsBase.value.trim()||'assets/reze'; save('settings',state.settings); save('lore',state.lore); save('assetsBase',state.assetsBase); setConnState('저장됨', true); syncForms(); }
-  els.resetAll.onclick = ()=>{ if(confirm('모든 설정 초기화?')){ localStorage.clear(); location.reload(); } };
-  function setConnState(txt, ok=false){ els.connState.textContent = txt; els.connState.style.color = ok? '#39d98a':'#7a8aa0'; }
-
-  // Connection test: Gemini models endpoint
-  els.testConn.onclick = async ()=>{ try{ setConnState('테스트 중...'); const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(state.settings.apiKey||els.apiKey.value.trim())}`; const resp = await fetch(url); setConnState(resp.ok? '연결 성공':'실패: '+resp.statusText, resp.ok); } catch(e){ setConnState('실패: '+e.message) } };
-
-  // Chat rendering (+ emotion image)
-  function extractEmotion(text=''){ const m = text.match(/<emotion:([a-zA-Z_\-]+)>/); return m? m[1].toLowerCase(): null }
-  function renderChat(){ els.chat.innerHTML=''; state.messages.forEach(m=>{ const node=el('div',{class:'msg '+m.role},[ el('div',{class:'role'},[document.createTextNode(m.role==='user'?'U':'A')]), el('div',{class:'bubble',html: md(m.content||'')}) ]);
-      const emo = (m.meta&&m.meta.emotion) || extractEmotion(m.content);
-      if(m.role==='assistant' && emo){ const key = state.emotionMap[emo] || `reze_${emo}`; const url = state.assets[key] || assetUrlForKey(key); const w = Number(els.assetWidth.value)||260; if(url){ const img = el('img',{src:url,alt:key,style:`display:block;margin:4px 0;max-width:${w}px;border-radius:12px`}); node.querySelector('.bubble').prepend(img); } }
-      els.chat.appendChild(node); }); els.chat.scrollTop=els.chat.scrollHeight; }
-  function addMsg(role, content, meta={}){ state.messages.push({role, content, meta}); save('messages', state.messages); renderChat(); }
-
-  // Send via Gemini streamGenerateContent
-  let controller=null;
-  async function send(){ const content = els.userInput.value.trim(); if(!content) return; els.userInput.value=''; addMsg('user', content);
-    const sysPieces=[]; if(state.lore.lockSystem && state.lore.systemPrompt) sysPieces.push(state.lore.systemPrompt); if(state.lore.lockWorld && state.lore.worldInfo) sysPieces.push('### World Info\n'+state.lore.worldInfo); if(state.lore.lockChar && state.lore.charPrompt) sysPieces.push(`### Character (${state.lore.charName||'레제'})\n`+state.lore.charPrompt);
-    const systemInstruction = sysPieces.join('\n\n');
-    const history = state.messages.map(m=>({ role: m.role==='assistant'?'model':'user', parts:[{text:m.content}] }));
-    const payload = { model: state.settings.model||'gemini-2.5-pro', generationConfig: { maxOutputTokens: Number(state.settings.max_tokens)||1024, temperature: Number(state.settings.temperature)||0.7, topP: Number(state.settings.top_p)||1 }, contents: history, systemInstruction: systemInstruction? { role:'system', parts:[{text: systemInstruction}] }: undefined };
-    addMsg('assistant',''); const idx = state.messages.length-1;
-    try{ const key = (state.settings.apiKey||els.apiKey.value.trim()||els.miniApiKey.value.trim()); if(!key) throw new Error('API Key 누락'); const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(payload.model)}:streamGenerateContent?key=${encodeURIComponent(key)}`; controller = new AbortController(); const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal }); if(!resp.ok) throw new Error('HTTP '+resp.status+' '+resp.statusText);
-      const reader = resp.body.getReader(); const decoder = new TextDecoder(); let buf=''; while(true){ const {done, value}= await reader.read(); if(done) break; buf += decoder.decode(value,{stream:true}); const lines = buf.split('\n'); buf = lines.pop(); for(const line of lines){ const s = line.trim(); if(!s.startsWith('data:')) continue; const data = s.slice(5).trim(); if(!data || data==='[DONE]') continue; try{ const j = JSON.parse(data); const parts = j.candidates?.[0]?.content?.parts || []; for(const p of parts){ if(p.text){ state.messages[idx].content += p.text; } } renderChat(); }catch{} }
-      }
-      save('messages', state.messages);
-    }catch(err){ state.messages[idx].content = '**오류:** '+err.message; renderChat(); } finally { controller=null; }
-  }
-
-  els.send.onclick = send; els.userInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } }); els.stop.onclick = ()=>{ if(controller) controller.abort() };
-
-  // Chat mgmt
-  els.newChat.onclick = ()=>{ if(confirm('현재 대화를 지우고 새로 시작할까요?')){ state.messages=[]; save('messages',state.messages); renderChat(); } };
-  els.exportChat.onclick = ()=>{ const blob=new Blob([JSON.stringify({messages:state.messages, meta:{date:new Date().toISOString(), model:state.settings.model}} ,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reze_chat.json'; a.click(); };
-  els.importChat.onclick=()=> els.importChatFile.click(); els.importChatFile.onchange=(e)=>{ const file=e.target.files[0]; if(!file) return; const r=new FileReader(); r.onload=()=>{ try{ const j=JSON.parse(r.result); if(Array.isArray(j.messages)){ state.messages=j.messages; save('messages',state.messages); renderChat(); } } catch(err){ alert('JSON 파싱 실패: '+err.message) } }; r.readAsText(file); };
-
-  // ===== Gallery (manifest 우선, 없으면 매핑 사용) =====
-  els.loadManifest.onclick = renderGallery;
-  async function renderGallery(){ els.gallery.innerHTML=''; const base=(state.assetsBase||'assets/reze').replace(/\/$/,''); const manifest=els.manifestPath.value.trim(); let files=[];
-    try{ const resp = await fetch(manifest,{cache:'no-store'}); if(resp.ok){ files = await resp.json(); if(!Array.isArray(files)) files=[]; } } catch(e){ /* ignore */ }
-    if(files.length===0){ // fallback: mapping
-      files = Object.values(state.assets);
-      // if mapping empty, try common keys from emotionMap
-      if(files.length===0){ const exts=['.jpg','.jpeg','.png','.gif','.webp']; const keys=[...new Set(Object.values(state.emotionMap))]; keys.forEach(k=> exts.forEach(ext=> files.push(`${base}/${k}${ext}`))); }
-    }
-    const seen=new Set();
-    files.filter(Boolean).forEach(p=>{ if(seen.has(p)) return; seen.add(p); const img=el('img',{src:p,alt:p}); const wrap=el('div',{},[img]); els.gallery.appendChild(wrap); });
-  }
-})();
-</script>
+<script src="app.js"></script>
 </body>
 </html>
