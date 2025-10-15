@@ -40,16 +40,16 @@ header h1{font-size:15px;margin:0;font-weight:600;color:#d5e4ff}
 /* Mini connection */
 .mini-conn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:#0b111b}
 .mini-conn .tag{font-size:12px;color:#a5b4d6}
-.mini-conn input{width:230px;background:#09121c;border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:8px}
+.mini-conn input{width:230px;background:#09121c;border:1px solid var(--border);color:#var(--text);padding:6px 8px;border-radius:8px}
 
 /* Editor + Gallery */
 .panel{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;overflow:auto}
 label{display:block;font-size:12px;color:var(--muted);margin:8px 0 4px}
-input[type=text],input[type=password],textarea{width:100%;background:#0b111b;border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:10px;outline:none}
+input[type=text],input[type=password],textarea{width:100%;background:#0b111b;border:1px solid var(--border);color:#e7ecf3;padding:8px 10px;border-radius:10px;outline:none}
 textarea{min-height:120px;resize:vertical}
 .card{background:#0b111b;border:1px solid var(--border);border-radius:12px;padding:12px}
 
-/* Gallery grid */
+/* Gallery */
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .gallery .item{position:relative;background:#0b111b;border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .gallery .item img{width:100%;height:140px;object-fit:cover;display:block}
@@ -68,3 +68,12 @@ textarea{min-height:120px;resize:vertical}
 /* BGM slider */
 .range{appearance:none;width:100%;height:6px;border-radius:6px;background:#0d1420;border:1px solid var(--border)}
 .range::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:#5b9cf6}
+
+/* floating unmute button */
+.floating{
+  position:fixed; right:12px; bottom:12px;
+  padding:10px 12px; border-radius:12px;
+  border:1px solid var(--border); background:#0b111b; color:#e7ecf3;
+  box-shadow:0 6px 18px rgba(0,0,0,.35); cursor:pointer; z-index:10000;
+}
+.floating:hover{ border-color:#2a4772 }
