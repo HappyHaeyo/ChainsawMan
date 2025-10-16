@@ -33,11 +33,39 @@
       assistantAvatar:'assets/reze/profile/reze.png'
     }),
     lore: load('lore', {
-      systemPrompt:'응답 첫 줄에 <emotion:neutral> 태그 1개. 감정 키: happy/sad/angry/neutral. 한국어로 간결히 답하기.',
+      // ★ 요청하신 시스템 프롬프트 반영 (멀티라인 템플릿 리터럴)
+      systemPrompt: `역할: 너는 체인소맨의 ‘레제’ 캐릭터다. 모든 응답은 아래 3줄 형식을 반드시 지켜라. 
+
+형식:
+1) 첫 줄: <emotion:키>
+2) 둘째 줄: "레제의 대사" — 따옴표 포함, 1–2문장, 한국어
+3) 셋째 줄: 레제의 행동·표정·상황 서술 — 1–2문장, 한국어
+
+규칙:
+- 첫 줄의 emotion 키로 이미지를 고른다. 허용 키: neutral, listening, angry, happy, laughing, cold_smile, blush, cafe_work, slack_off, unpleasant, sad
+- 정확히 맞는 감정이 없으면 가장 가까운 키를 고른다. 
+  예: 즐거운 장난 ⇒ laughing, 조용히 경청 ⇒ listening, 차가운 미소 ⇒ cold_smile
+- 과장 금지. 간결하고 자연스러운 구어체.
+- 개인정보 요구·민감/유해 내용·현실 행위 유도는 금지. 불가 시 간단히 이유를 말하고 안전한 대안 제시.
+- 마크다운·불릿·코드블록·이모지 금지. 위 3줄 외 다른 출력은 하지 말 것.
+- 한 턴 응답은 최대 3줄까지만.`,
       worldInfo:'', charName:'레제',
       charPrompt:'레제 말투: 담담+장난기. 과한 애교 금지. 금지: 현실 개인정보 요구.',
       lockSystem:true, lockWorld:true, lockChar:true,
-      emotionMap:{ happy:'reze_happy', sad:'reze_sad', angry:'reze_angry', neutral:'reze_neutral' },
+      // ★ 감정 키 전체 확장 + 파일 확장자 포함 매핑
+      emotionMap:{
+        neutral:'reze_neutral.png',
+        listening:'reze_listening.gif',
+        angry:'reze_angry.gif',
+        happy:'reze_happy.gif',
+        laughing:'reze_laughing.gif',
+        cold_smile:'reze_cold_smile.png',
+        blush:'reze_blush.png',
+        cafe_work:'reze_cafe_work.png',
+        slack_off:'reze_slack_off.png',
+        unpleasant:'reze_unpleasant.png',
+        sad:'reze_unpleasant.png'
+      },
       greetingText:'<emotion:neutral> 안녕! 난 레제야.',
       greetingOn:true
     }),
@@ -155,8 +183,11 @@
     const av = role==='user' ? (state.settings.userAvatar||'') : (state.settings.assistantAvatar||'');
     return av ? `<img src="${av}" alt="${role}" onerror="this.style.display='none'">` : (role==='user'?'U':'A');
   }
+  // ★ 확장자 지원: 매핑 값이 'reze_xxx.gif/png' 등인 경우 그대로 사용, 없으면 .jpg 기본
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
+    if (!key) return '';
+    if (/\.(png|jpg|jpeg|gif|webp)$/i.test(key)) return `${base}/${key}`;
     return `${base}/${key}.jpg`;
   }
 
@@ -173,11 +204,11 @@
       const bubbleEl = node.querySelector('.bubble');
       const emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
       if(m.role==='assistant' && emo){
-        const key = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
-        const url = assetUrlForKey(key);
+        const raw = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
+        const url = assetUrlForKey(raw);
         if(url){
           const img = document.createElement('img');
-          img.src = url; img.alt = key;
+          img.src = url; img.alt = raw;
           img.style = 'display:block;margin:4px 0;max-width:260px;border-radius:12px';
           img.onerror = () => { img.style.display = 'none'; };
           bubbleEl.prepend(img);
@@ -387,14 +418,21 @@
     }catch(_){}
 
     if(files.length===0){
+      // ★ 매핑이 확장자를 포함하면 그대로, 아니면 대표 확장자 후보 생성
       const keys = Object.values(state.lore.emotionMap||{});
-      const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
-      keys.forEach(k => exts.forEach(ext => files.push(`${base}/${k}${ext}`)));
+      const exts = ['.png','.jpg','.jpeg','.gif','.webp'];
+      keys.forEach(k => {
+        if (/\.(png|jpg|jpeg|gif|webp)$/i.test(k)) {
+          files.push(`${base}/${k}`);
+        } else {
+          exts.forEach(ext => files.push(`${base}/${k}${ext}`));
+        }
+      });
     }
 
     const normalize = f => (typeof f === 'string')
-      ? { src: (f.startsWith('http')||f.startsWith('/')) ? f : `${base}/${f}`, tag: tagFromPath(f) }
-      : { src: (f.src && (f.src.startsWith('http')||f.src.startsWith('/'))) ? f.src : `${base}/${f.src}`, tag: f.tag || tagFromPath(f.src) };
+      ? { src: (f.startsWith('http')||f.startsWith('/')) ? f : `${base}/${f.replace(new RegExp(`^${base}/`),'')}`, tag: tagFromPath(f) }
+      : { src: (f.src && (f.src.startsWith('http')||f.src.startsWith('/'))) ? f.src : `${base}/${(f.src||'').replace(new RegExp(`^${base}/`),'')}`, tag: f.tag || tagFromPath(f.src) };
 
     const seen = new Set();
     files.map(normalize).forEach(({src,tag})=>{
