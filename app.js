@@ -97,7 +97,8 @@
   // Mini connection
   els.miniSave.onclick = () => {
     state.settings.apiKey = els.miniApiKey.value.trim();
-    state.settings.model  = els.miniModel.value.trim() || 'gemini-2.5-pro';
+    // 모델 문자열 정규화: 사용자가 'models/...' 입력해도 안전
+    state.settings.model  = (els.miniModel.value.trim() || 'gemini-2.5-pro').replace(/^models\//,'');
     save('settings', state.settings);
     els.miniState.textContent = '저장됨';
     setTimeout(()=> els.miniState.textContent='', 1200);
@@ -152,7 +153,7 @@
   function extractEmotion(text=''){ const m=text.match(/<emotion:([a-zA-Z_\-]+)>/); return m? m[1].toLowerCase(): null; }
   function roleHtml(role){
     const av = role==='user' ? (state.settings.userAvatar||'') : (state.settings.assistantAvatar||'');
-    return av ? `<img src="${av}" alt="${role}">` : (role==='user'?'U':'A');
+    return av ? `<img src="${av}" alt="${role}" onerror="this.style.display='none'">` : (role==='user'?'U':'A');
   }
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
@@ -166,11 +167,10 @@
       node.className = 'msg '+m.role;
       node.innerHTML = `
         <div class="role">${roleHtml(m.role)}</div>
-        <div class="bubble">${md(m.content||'')}</div>`;
+        <div class="bubble">${m.meta && m.meta.typing
+          ? '<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>'
+          : md(m.content||'')}</div>`;
       const bubbleEl = node.querySelector('.bubble');
-      if (m.meta && m.meta.typing) {
-        bubbleEl.innerHTML = '<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
-      }
       const emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
       if(m.role==='assistant' && emo){
         const key = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
@@ -179,6 +179,7 @@
           const img = document.createElement('img');
           img.src = url; img.alt = key;
           img.style = 'display:block;margin:4px 0;max-width:260px;border-radius:12px';
+          img.onerror = () => { img.style.display = 'none'; };
           bubbleEl.prepend(img);
         }
       }
@@ -188,77 +189,159 @@
   }
   function addMsg(role,content,meta={}){ state.messages.push({role,content,meta}); save('messages',state.messages); renderChat(); }
 
-  // Send via Gemini (stream)
+  // ─────────────────────────────────────────────────────────────
+  //  Gemini 호출부 (스트림 + 논스트림 폴백, 모델 문자열 정규화, SSE 헤더)
+  // ─────────────────────────────────────────────────────────────
   let controller=null;
-  async function send(){
-    const content = els.userInput.value.trim();
-    if(!content) return;
-    els.userInput.value=''; addMsg('user',content);
 
+  function buildSystemInstruction(){
     const L = state.lore;
     const sysPieces=[];
     if(L.lockSystem && L.systemPrompt) sysPieces.push(L.systemPrompt);
     if(L.lockWorld  && L.worldInfo)    sysPieces.push('### World Info\n'+L.worldInfo);
     if(L.lockChar   && L.charPrompt)   sysPieces.push(`### Character (${L.charName||'레제'})\n`+L.charPrompt);
-    const systemInstruction = sysPieces.join('\n\n');
+    return sysPieces.join('\n\n');
+  }
 
-    const history = state.messages.map(m=>({ role: m.role==='assistant'?'model':'user', parts:[{text:m.content}] }));
+  function buildHistory(){
+    // 비어있거나 마지막이 user가 아니면 이후 send()에서 user 메시지를 보낸 뒤 다시 히스토리 생성하므로 여기서는 순수 변환만
+    return (state.messages||[])
+      .filter(m => m.content && typeof m.content === 'string')
+      .map(m => ({ role: (m.role === 'assistant' ? 'model' : 'user'), parts: [{ text: m.content }] }));
+  }
+
+  function normalizeModel(m){ return (m || 'gemini-2.5-pro').trim().replace(/^models\//,''); }
+
+  async function sendNonStream(model, key, payload){
+    model = normalizeModel(model);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    const r = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${await r.text()}`);
+    const j = await r.json();
+    const text = j.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    const finish = j.candidates?.[0]?.finishReason || '';
+    return { text, finish };
+  }
+
+  async function send(){
+    const content = els.userInput.value.trim();
+    if(!content) return;
+
+    // 사용자 메시지 먼저 push
+    els.userInput.value='';
+    addMsg('user',content);
+
+    const systemInstruction = buildSystemInstruction();
+    const history = buildHistory();
+
     const payload = {
-      model: state.settings.model || 'gemini-2.5-pro',
       generationConfig: { maxOutputTokens:1024, temperature:0.7, topP:1 },
       contents: history,
-      systemInstruction: systemInstruction? { role:'system', parts:[{text:systemInstruction}] }: undefined
+      ...(systemInstruction ? { systemInstruction: { role:'system', parts:[{text:systemInstruction}] } } : {})
     };
 
-    // 타이핑 버블 먼저 출력
+    // 타이핑 버블 출력
     addMsg('assistant','', {typing:true});
     const idx = state.messages.length-1;
     renderChat();
 
     let gotAny = false;
     try{
-      const key = state.settings.apiKey || els.miniApiKey.value.trim();
+      const key = (state.settings.apiKey || els.miniApiKey.value).trim();
       if(!key) throw new Error('API Key 누락');
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(payload.model)}:streamGenerateContent?key=${encodeURIComponent(key)}`;
+      const model = normalizeModel(state.settings.model || els.miniModel.value || 'gemini-2.5-pro');
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?key=${encodeURIComponent(key)}`;
       controller = new AbortController();
-      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), signal: controller.signal });
+
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Accept':'text/event-stream' // SSE 명시
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
       if(!resp.ok){
         let detail=''; try{ detail = await resp.text(); }catch(_){}
         throw new Error(`HTTP ${resp.status} ${resp.statusText} ${detail}`);
       }
-      const reader = resp.body.getReader(); const decoder = new TextDecoder(); let buf='';
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf='';
+
       while(true){
-        const {done,value}=await reader.read(); if(done) break;
-        buf+=decoder.decode(value,{stream:true});
-        const lines = buf.split('\n'); buf = lines.pop();
+        const {done,value}=await reader.read();
+        if(done) break;
+        buf += decoder.decode(value,{stream:true});
+
+        const lines = buf.split('\n');
+        buf = lines.pop(); // 마지막 라인은 다음 chunk와 합침
+
         for(const line of lines){
-          const s=line.trim(); if(!s.startsWith('data:')) continue;
-          const data=s.slice(5).trim(); if(!data || data==='[DONE]') continue;
+          const s = line.trim();
+          if(!s.startsWith('data:')) continue;
+          const data = s.slice(5).trim();
+          if(!data || data === '[DONE]') continue;
+
           try{
-            const j=JSON.parse(data); const parts=j.candidates?.[0]?.content?.parts||[];
+            const j = JSON.parse(data);
+
+            // 안전 차단 안내
+            const finish = j.candidates?.[0]?.finishReason;
+            if (finish === 'SAFETY') {
+              state.messages[idx].meta = {};
+              state.messages[idx].content = '_(안전 정책에 의해 응답이 차단되었습니다.)_';
+              gotAny = true; renderChat(); continue;
+            }
+
+            const parts = j.candidates?.[0]?.content?.parts || [];
             for(const p of parts){
               if(p.text){
-                if(!gotAny){ gotAny=true; state.messages[idx].meta={}; state.messages[idx].content=''; }
+                if(!gotAny){ gotAny=true; state.messages[idx].meta = {}; state.messages[idx].content=''; }
                 state.messages[idx].content += p.text;
               }
             }
             renderChat();
-          }catch{}
+          }catch{
+            // 조각 파싱 실패는 무시
+          }
         }
       }
-      // 스트림 끝, 토큰을 하나도 못 받았으면 이유 힌트
+
       if(!gotAny){
-        state.messages[idx].meta={};
-        state.messages[idx].content='_(응답이 생성되지 않았습니다. 키/오리진 제한, 안전차단, 또는 모델명 오류 가능)_';
-        renderChat();
+        // 스트림이 막혔거나 실제 토큰이 없을 때 논스트림 폴백
+        try{
+          const { text, finish } = await sendNonStream(model, key, payload);
+          state.messages[idx].meta = {};
+          state.messages[idx].content = text || (finish==='SAFETY'
+            ? '_(안전 정책에 의해 응답이 차단되었습니다.)_'
+            : '_(응답이 생성되지 않았습니다.)_');
+          renderChat();
+        }catch(e2){
+          state.messages[idx].meta = {};
+          state.messages[idx].content = '**오류(폴백 실패)**: ' + e2.message;
+          renderChat();
+        }
       }
+
       save('messages',state.messages);
     }catch(err){
       state.messages[idx].meta={};
       state.messages[idx].content='**오류:** '+err.message;
       renderChat();
-    }finally{ controller=null; }
+    }finally{
+      controller=null;
+    }
   }
+
   els.send.onclick = send;
   els.userInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }});
   els.stop.onclick = ()=>{ if(controller) controller.abort(); };
@@ -273,7 +356,10 @@
     }
     renderChat();
   };
-  els.exportChat.onclick = ()=>{ const blob=new Blob([JSON.stringify({messages:state.messages, meta:{date:new Date().toISOString(), model:state.settings.model}},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reze_chat.json'; a.click(); };
+  els.exportChat.onclick = ()=>{
+    const blob=new Blob([JSON.stringify({messages:state.messages, meta:{date:new Date().toISOString(), model:state.settings.model}},null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='reze_chat.json'; a.click();
+  };
   els.importChat.onclick = ()=> els.importChatFile.click();
   els.importChatFile.onchange = e => {
     const file=e.target.files[0]; if(!file) return;
@@ -315,6 +401,7 @@
       if(seen.has(src)) return; seen.add(src);
       const item = document.createElement('div'); item.className = 'item';
       const img  = document.createElement('img'); img.src = src; img.alt = tag || src;
+      img.onerror = () => { img.style.display = 'none'; };
       const cap  = document.createElement('div'); cap.className = 'caption'; cap.textContent = tag || src;
       item.appendChild(img); item.appendChild(cap);
       item.addEventListener('click', ()=> openLightbox(src, tag||src));
