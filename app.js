@@ -1,24 +1,6 @@
 (function(){
   const $ = id => document.getElementById(id);
 
-  // ─────────────────────────────────────────────────────────────
-  // A안: 감정 매핑 강제 고정 설정
-  // ─────────────────────────────────────────────────────────────
-  const FORCE_EMOTION_MAP = true; // ← 고정 모드 ON
-  const DEFAULT_EMOTION_MAP = {
-    neutral: "reze_neutral.png",
-    listening: "reze_listening.gif",
-    angry: "reze_angry.gif",
-    happy: "reze_happy.gif",
-    laughing: "reze_laughing.gif",
-    cold_smile: "reze_cold_smile.png",
-    blush: "reze_blush.png",
-    cafe_work: "reze_cafe_work.png",
-    slack_off: "reze_slack_off.png",
-    unpleasant: "reze_unpleasant.png",
-    sad: "reze_unpleasant.png"
-  };
-
   // Elements
   const els = {
     tabs: document.querySelectorAll('.tab'),
@@ -62,12 +44,6 @@
     messages: load('messages', [])
   };
 
-  // A안: 시작 시 강제로 덮어쓰기
-  if (FORCE_EMOTION_MAP) {
-    state.lore.emotionMap = { ...DEFAULT_EMOTION_MAP };
-    save('lore', state.lore);
-  }
-
   // Storage
   function save(k,v){ localStorage.setItem('reze_'+k, JSON.stringify(v)); }
   function load(k,def){ try{ return JSON.parse(localStorage.getItem('reze_'+k)) ?? def }catch{ return def } }
@@ -101,17 +77,10 @@
   function sync(){
     const s = state.settings, L = state.lore;
     els.miniApiKey.value = s.apiKey || '';
-    // 모델 문자열 정규화 표시
-    els.miniModel.value  = (s.model || 'gemini-2.5-pro').replace(/^models\//,'');
+    els.miniModel.value  = s.model  || 'gemini-2.5-pro';
     ['systemPrompt','worldInfo','charName','charPrompt'].forEach(k => els[k].value = L[k] ?? '');
     els.lockSystem.checked = L.lockSystem; els.lockWorld.checked = L.lockWorld; els.lockChar.checked = L.lockChar;
-
-    // 감정 매핑 UI 주입
     els.emotionMap.value = JSON.stringify(L.emotionMap || {}, null, 0);
-    if (FORCE_EMOTION_MAP) {
-      els.emotionMap.disabled = true; // 편집 불가
-    }
-
     els.userAvatar.value = s.userAvatar || '';
     els.assistantAvatar.value = s.assistantAvatar || '';
     els.greetingText.value = L.greetingText || '';
@@ -128,7 +97,7 @@
   // Mini connection
   els.miniSave.onclick = () => {
     state.settings.apiKey = els.miniApiKey.value.trim();
-    // 모델 문자열 정규화: 'models/...'로 넣어도 안전
+    // 모델 문자열 정규화: 사용자가 'models/...' 입력해도 안전
     state.settings.model  = (els.miniModel.value.trim() || 'gemini-2.5-pro').replace(/^models\//,'');
     save('settings', state.settings);
     els.miniState.textContent = '저장됨';
@@ -162,19 +131,11 @@
     state.lore.lockSystem   = els.lockSystem.checked;
     state.lore.lockWorld    = els.lockWorld.checked;
     state.lore.lockChar     = els.lockChar.checked;
-
-    // A안: 감정 매핑은 항상 고정값으로 유지
-    if (FORCE_EMOTION_MAP) {
-      state.lore.emotionMap = { ...DEFAULT_EMOTION_MAP };
-    } else {
-      try { state.lore.emotionMap = JSON.parse(els.emotionMap.value || '{}'); }
-      catch(e){ alert('감정 매핑 JSON 오류: '+e.message); return; }
-    }
-
+    try { state.lore.emotionMap = JSON.parse(els.emotionMap.value || '{}'); }
+    catch(e){ alert('감정 매핑 JSON 오류: '+e.message); return; }
     save('lore', state.lore);
     alert('저장됨'); renderGallery();
   };
-
   els.saveAvatars.onclick = ()=>{
     state.settings.userAvatar = els.userAvatar.value.trim() || 'assets/reze/profile/user.png';
     state.settings.assistantAvatar = els.assistantAvatar.value.trim() || 'assets/reze/profile/reze.png';
@@ -194,10 +155,8 @@
     const av = role==='user' ? (state.settings.userAvatar||'') : (state.settings.assistantAvatar||'');
     return av ? `<img src="${av}" alt="${role}" onerror="this.style.display='none'">` : (role==='user'?'U':'A');
   }
-  // 확장자 섞임 대응: 확장자 포함이면 그대로 사용
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
-    if (/\.(png|jpe?g|gif|webp)$/i.test(key)) return `${base}/${key}`;
     return `${base}/${key}.jpg`;
   }
 
@@ -245,6 +204,7 @@
   }
 
   function buildHistory(){
+    // 비어있거나 마지막이 user가 아니면 이후 send()에서 user 메시지를 보낸 뒤 다시 히스토리 생성하므로 여기서는 순수 변환만
     return (state.messages||[])
       .filter(m => m.content && typeof m.content === 'string')
       .map(m => ({ role: (m.role === 'assistant' ? 'model' : 'user'), parts: [{ text: m.content }] }));
