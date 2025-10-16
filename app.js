@@ -33,7 +33,6 @@
       assistantAvatar:'assets/reze/profile/reze.png'
     }),
     lore: load('lore', {
-      // ★ 요청하신 시스템 프롬프트 반영 (멀티라인 템플릿 리터럴)
       systemPrompt: `역할: 너는 체인소맨의 ‘레제’ 캐릭터다. 모든 응답은 아래 3줄 형식을 반드시 지켜라. 
 
 형식:
@@ -52,7 +51,6 @@
       worldInfo:'', charName:'레제',
       charPrompt:'레제 말투: 담담+장난기. 과한 애교 금지. 금지: 현실 개인정보 요구.',
       lockSystem:true, lockWorld:true, lockChar:true,
-      // ★ 감정 키 전체 확장 + 파일 확장자 포함 매핑
       emotionMap:{
         neutral:'reze_neutral.png',
         listening:'reze_listening.gif',
@@ -78,7 +76,7 @@
 
   // Markdown-lite
   function md(s=''){
-    s = s.replace(/[&<>]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+    s = s.replace(/[&<>]/g, m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;"}[m]));
     s = s.replace(/```([\s\S]*?)```/g,(m,code)=>`<pre><code>${code}</code></pre>`);
     s = s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
     s = s.replace(/\*([^*]+)\*/g,'<em>$1</em>');
@@ -125,7 +123,6 @@
   // Mini connection
   els.miniSave.onclick = () => {
     state.settings.apiKey = els.miniApiKey.value.trim();
-    // 모델 문자열 정규화: 사용자가 'models/...' 입력해도 안전
     state.settings.model  = (els.miniModel.value.trim() || 'gemini-2.5-pro').replace(/^models\//,'');
     save('settings', state.settings);
     els.miniState.textContent = '저장됨';
@@ -178,12 +175,44 @@
   };
 
   // Chat helpers
-  function extractEmotion(text=''){ const m=text.match(/<emotion:([a-zA-Z_\-]+)>/); return m? m[1].toLowerCase(): null; }
+  function extractEmotion(text=''){
+    const m = text.match(/<emotion:([a-zA-Z_\-]+)>/);
+    return m ? m[1].toLowerCase() : null;
+  }
+
+  // 텍스트 기반 감정 추론 (neutral/미기재 시 대체)
+  function inferEmotionFromText(text=''){
+    const t = (text||'').toLowerCase();
+
+    // laughing (가벼운 장난/웃음)
+    if (/[ㅋ]{2,}|ㅎㅎ|하하|농담|장난|웃/g.test(t)) return 'laughing';
+    // happy
+    if (/(좋아|멋지|다행|기뻐|만족|잘됐)/.test(t)) return 'happy';
+    // listening (경청/수용)
+    if (/(응|음|알았|그래|들어줄|고마워|확인)/.test(t)) return 'listening';
+    // angry
+    if (/(화나|분노|열받|짜증|왜 이래|싫어)/.test(t)) return 'angry';
+    // cold_smile (비웃/차가운 미소 뉘앙스)
+    if (/(비웃|씁쓸|쿨하게|차갑)/.test(t)) return 'cold_smile';
+    // blush (부끄/민망)
+    if (/(부끄|민망|얼굴이 붉|쑥스)/.test(t)) return 'blush';
+    // unpleasant (불편/곤란)
+    if (/(불편|곤란|애매|에휴|하\.\.|휴\.)/.test(t)) return 'unpleasant';
+    // sad
+    if (/(슬프|아쉬|속상|우울|미안)/.test(t)) return 'sad';
+    // 상황성
+    if (/(작업|코딩|정리|카페|노트북|일하)/.test(t)) return 'cafe_work';
+    if (/(놀자|빈둥|게으|쉬자|땡땡)/.test(t)) return 'slack_off';
+
+    return null; // 추론 실패 시 그대로 둠
+  }
+
   function roleHtml(role){
     const av = role==='user' ? (state.settings.userAvatar||'') : (state.settings.assistantAvatar||'');
     return av ? `<img src="${av}" alt="${role}" onerror="this.style.display='none'">` : (role==='user'?'U':'A');
   }
-  // ★ 확장자 지원: 매핑 값이 'reze_xxx.gif/png' 등인 경우 그대로 사용, 없으면 .jpg 기본
+
+  // 확장자 지원: 매핑 값에 확장자가 있으면 그대로, 없으면 .jpg
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
     if (!key) return '';
@@ -202,18 +231,28 @@
           ? '<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>'
           : md(m.content||'')}</div>`;
       const bubbleEl = node.querySelector('.bubble');
-      const emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
-      if(m.role==='assistant' && emo){
-        const raw = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
-        const url = assetUrlForKey(raw);
-        if(url){
-          const img = document.createElement('img');
-          img.src = url; img.alt = raw;
-          img.style = 'display:block;margin:4px 0;max-width:260px;border-radius:12px';
-          img.onerror = () => { img.style.display = 'none'; };
-          bubbleEl.prepend(img);
+
+      if(m.role==='assistant'){
+        // 1) 명시 감정 추출
+        let emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
+        // 2) neutral 또는 미기재면 텍스트로 추론
+        if (!emo || emo === 'neutral') {
+          const inferred = inferEmotionFromText(m.content);
+          if (inferred) emo = inferred;
+        }
+        if (emo){
+          const raw = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
+          const url = assetUrlForKey(raw);
+          if(url){
+            const img = document.createElement('img');
+            img.src = url; img.alt = raw;
+            img.style = 'display:block;margin:4px 0;max-width:260px;border-radius:12px';
+            img.onerror = () => { img.style.display = 'none'; };
+            bubbleEl.prepend(img);
+          }
         }
       }
+
       els.chat.appendChild(node);
     });
     els.chat.scrollTop = els.chat.scrollHeight;
@@ -235,7 +274,6 @@
   }
 
   function buildHistory(){
-    // 비어있거나 마지막이 user가 아니면 이후 send()에서 user 메시지를 보낸 뒤 다시 히스토리 생성하므로 여기서는 순수 변환만
     return (state.messages||[])
       .filter(m => m.content && typeof m.content === 'string')
       .map(m => ({ role: (m.role === 'assistant' ? 'model' : 'user'), parts: [{ text: m.content }] }));
@@ -293,7 +331,7 @@
         method:'POST',
         headers:{
           'Content-Type':'application/json',
-          'Accept':'text/event-stream' // SSE 명시
+          'Accept':'text/event-stream'
         },
         body: JSON.stringify(payload),
         signal: controller.signal
@@ -314,7 +352,7 @@
         buf += decoder.decode(value,{stream:true});
 
         const lines = buf.split('\n');
-        buf = lines.pop(); // 마지막 라인은 다음 chunk와 합침
+        buf = lines.pop();
 
         for(const line of lines){
           const s = line.trim();
@@ -325,7 +363,6 @@
           try{
             const j = JSON.parse(data);
 
-            // 안전 차단 안내
             const finish = j.candidates?.[0]?.finishReason;
             if (finish === 'SAFETY') {
               state.messages[idx].meta = {};
@@ -348,7 +385,6 @@
       }
 
       if(!gotAny){
-        // 스트림이 막혔거나 실제 토큰이 없을 때 논스트림 폴백
         try{
           const { text, finish } = await sendNonStream(model, key, payload);
           state.messages[idx].meta = {};
@@ -418,15 +454,11 @@
     }catch(_){}
 
     if(files.length===0){
-      // ★ 매핑이 확장자를 포함하면 그대로, 아니면 대표 확장자 후보 생성
       const keys = Object.values(state.lore.emotionMap||{});
       const exts = ['.png','.jpg','.jpeg','.gif','.webp'];
       keys.forEach(k => {
-        if (/\.(png|jpg|jpeg|gif|webp)$/i.test(k)) {
-          files.push(`${base}/${k}`);
-        } else {
-          exts.forEach(ext => files.push(`${base}/${k}${ext}`));
-        }
+        if (/\.(png|jpg|jpeg|gif|webp)$/i.test(k)) files.push(`${base}/${k}`);
+        else exts.forEach(ext => files.push(`${base}/${k}${ext}`));
       });
     }
 
