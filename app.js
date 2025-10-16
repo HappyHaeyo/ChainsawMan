@@ -33,21 +33,39 @@
       assistantAvatar:'assets/reze/profile/reze.png'
     }),
     lore: load('lore', {
-      systemPrompt:
-        '역할: 너는 체인소맨의 ‘레제’ 캐릭터다.\n' +
-        '항상 3줄 형식으로 답하려 노력한다.\n\n' +
-        '형식:\n' +
-        '1) 첫 줄: <emotion:키>\n' +
-        '2) 둘째 줄: "레제의 대사" — 따옴표 포함, 1–2줄, 한국어\n' +
-        '3) 셋째 줄: 레제의 행동·표정·상황 서술 — 1–2줄, 한국어\n\n' +
-        '규칙:\n' +
-        '- 첫 줄 emotion 키: neutral, listening, angry, happy, laughing, cold_smile, blush, cafe_work, slack_off, unpleasant, sad 중 하나.\n' +
-        '- 모호하면 가장 가까운 감정을 선택.\n' +
-        '- 만약 안전 정책 때문에 정상 응답이 어렵다면, <emotion:neutral> + 간단한 대사/상황으로 반드시 3줄 출력.',
+      // === 완화된 시스템 프롬프트 ===
+      systemPrompt: `역할: 너는 체인소맨의 ‘레제’ 캐릭터다.
+가능하면 항상 아래 3줄 형식으로 답한다. 불가하거나 안전 정책에 걸리면 비슷한 형식으로 간단히 대체한다.
+
+형식:
+1) 첫 줄: <emotion:키>
+2) 둘째 줄: "레제의 대사" — 따옴표 포함, 1–2문장, 한국어
+3) 셋째 줄: 레제의 행동·표정·상황 서술 — 1–2문장, 한국어
+
+규칙:
+- emotion 키: neutral, listening, angry, happy, laughing, cold_smile, blush, cafe_work, slack_off, unpleasant, sad 중 하나.
+- 모호하면 가장 가까운 감정을 선택한다(예: 조용히 경청 ⇒ listening, 즐거운 장난 ⇒ laughing, 차가운 미소 ⇒ cold_smile).
+- 과장은 피하고 자연스러운 구어체로 간결하게 말한다.
+- 현실 개인정보 요구, 과도한 민감/유해, 현실 행위 강요는 피한다. 이런 경우엔 짧은 농담·비유 등으로 가볍게 회피한다.
+- 안전 정책 때문에 정상 답변이 어렵더라도 빈 응답은 하지 않는다. <emotion:neutral>로 3줄을 출력하고 간단한 대안을 제시한다.
+- 한 턴 응답은 최대 3줄.`,
+
       worldInfo:'', charName:'레제',
       charPrompt:'레제 말투: 담담+장난기. 과한 애교 금지. 금지: 현실 개인정보 요구.',
       lockSystem:true, lockWorld:true, lockChar:true,
-      emotionMap:{ happy:'reze_happy', sad:'reze_sad', angry:'reze_angry', neutral:'reze_neutral' },
+      emotionMap:{
+        neutral:'reze_neutral.png',
+        listening:'reze_listening.gif',
+        angry:'reze_angry.gif',
+        happy:'reze_happy.gif',
+        laughing:'reze_laughing.gif',
+        cold_smile:'reze_cold_smile.png',
+        blush:'reze_blush.png',
+        cafe_work:'reze_cafe_work.png',
+        slack_off:'reze_slack_off.png',
+        unpleasant:'reze_unpleasant.png',
+        sad:'reze_unpleasant.png'
+      },
       greetingText:'<emotion:neutral> 안녕! 난 레제야.',
       greetingOn:true
     }),
@@ -107,7 +125,6 @@
   // Mini connection
   els.miniSave.onclick = () => {
     state.settings.apiKey = els.miniApiKey.value.trim();
-    // 모델 문자열 정규화: 사용자가 'models/...' 입력해도 안전
     state.settings.model  = (els.miniModel.value.trim() || 'gemini-2.5-pro').replace(/^models\//,'');
     save('settings', state.settings);
     els.miniState.textContent = '저장됨';
@@ -160,13 +177,37 @@
   };
 
   // Chat helpers
-  function extractEmotion(text=''){ const m=text.match(/<emotion:([a-zA-Z_\-]+)>/); return m? m[1].toLowerCase(): null; }
+  function extractEmotion(text=''){
+    const m = text.match(/<emotion:([a-zA-Z_\-]+)>/);
+    return m ? m[1].toLowerCase() : null;
+  }
+
+  // 텍스트 기반 감정 추론 (neutral/미기재 시 대체)
+  function inferEmotionFromText(text=''){
+    const t = (text||'').toLowerCase();
+    if (/[ㅋ]{2,}|ㅎㅎ|하하|농담|장난|웃/.test(t)) return 'laughing';
+    if (/(좋아|멋지|다행|기뻐|만족|잘됐)/.test(t)) return 'happy';
+    if (/(응|음|알았|그래|들어줄|고마워|확인)/.test(t)) return 'listening';
+    if (/(화나|분노|열받|짜증|왜 이래|싫어)/.test(t)) return 'angry';
+    if (/(비웃|씁쓸|쿨하게|차갑)/.test(t)) return 'cold_smile';
+    if (/(부끄|민망|얼굴이 붉|쑥스)/.test(t)) return 'blush';
+    if (/(불편|곤란|애매|에휴)/.test(t)) return 'unpleasant';
+    if (/(슬프|아쉬|속상|우울|미안)/.test(t)) return 'sad';
+    if (/(작업|코딩|정리|카페|노트북|일하)/.test(t)) return 'cafe_work';
+    if (/(놀자|빈둥|게으|쉬자|땡땡)/.test(t)) return 'slack_off';
+    return null;
+  }
+
   function roleHtml(role){
     const av = role==='user' ? (state.settings.userAvatar||'') : (state.settings.assistantAvatar||'');
     return av ? `<img src="${av}" alt="${role}" onerror="this.style.display='none'">` : (role==='user'?'U':'A');
   }
+
+  // 확장자 지원: 매핑 값에 확장자가 있으면 그대로, 없으면 .jpg
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
+    if (!key) return '';
+    if (/\.(png|jpg|jpeg|gif|webp)$/i.test(key)) return `${base}/${key}`;
     return `${base}/${key}.jpg`;
   }
 
@@ -181,18 +222,26 @@
           ? '<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>'
           : md(m.content||'')}</div>`;
       const bubbleEl = node.querySelector('.bubble');
-      const emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
-      if(m.role==='assistant' && emo){
-        const key = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
-        const url = assetUrlForKey(key);
-        if(url){
-          const img = document.createElement('img');
-          img.src = url; img.alt = key;
-          img.style = 'display:block;margin:4px 0;max-width:260px;border-radius:12px';
-          img.onerror = () => { img.style.display = 'none'; };
-          bubbleEl.prepend(img);
+
+      if(m.role==='assistant'){
+        let emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
+        if (!emo || emo === 'neutral') {
+          const inferred = inferEmotionFromText(m.content);
+          if (inferred) emo = inferred;
+        }
+        if (emo){
+          const raw = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
+          const url = assetUrlForKey(raw);
+          if(url){
+            const img = document.createElement('img');
+            img.src = url; img.alt = raw;
+            img.style = 'display:block;margin:4px 0;max-width:260px;border-radius:12px';
+            img.onerror = () => { img.style.display = 'none'; };
+            bubbleEl.prepend(img);
+          }
         }
       }
+
       els.chat.appendChild(node);
     });
     els.chat.scrollTop = els.chat.scrollHeight;
@@ -204,6 +253,11 @@
   // ─────────────────────────────────────────────────────────────
   let controller=null;
 
+  const SAFETY_FALLBACK =
+`<emotion:neutral>
+"미안, 이건 그대로 답하기 어려워."
+잠깐 미소 지으며 선을 지키자고 손짓하고, 가볍게 다른 화제로 돌린다.`;
+
   function buildSystemInstruction(){
     const L = state.lore;
     const sysPieces=[];
@@ -214,7 +268,6 @@
   }
 
   function buildHistory(){
-    // 비어있거나 마지막이 user가 아니면 이후 send()에서 user 메시지를 보낸 뒤 다시 히스토리 생성하므로 여기서는 순수 변환만
     return (state.messages||[])
       .filter(m => m.content && typeof m.content === 'string')
       .map(m => ({ role: (m.role === 'assistant' ? 'model' : 'user'), parts: [{ text: m.content }] }));
@@ -272,7 +325,7 @@
         method:'POST',
         headers:{
           'Content-Type':'application/json',
-          'Accept':'text/event-stream' // SSE 명시
+          'Accept':'text/event-stream'
         },
         body: JSON.stringify(payload),
         signal: controller.signal
@@ -293,7 +346,7 @@
         buf += decoder.decode(value,{stream:true});
 
         const lines = buf.split('\n');
-        buf = lines.pop(); // 마지막 라인은 다음 chunk와 합침
+        buf = lines.pop();
 
         for(const line of lines){
           const s = line.trim();
@@ -304,11 +357,10 @@
           try{
             const j = JSON.parse(data);
 
-            // 안전 차단 안내
             const finish = j.candidates?.[0]?.finishReason;
             if (finish === 'SAFETY') {
               state.messages[idx].meta = {};
-              state.messages[idx].content = '_(안전 정책에 의해 응답이 차단되었습니다.)_';
+              state.messages[idx].content = SAFETY_FALLBACK;
               gotAny = true; renderChat(); continue;
             }
 
@@ -327,17 +379,16 @@
       }
 
       if(!gotAny){
-        // 스트림이 막혔거나 실제 토큰이 없을 때 논스트림 폴백
         try{
           const { text, finish } = await sendNonStream(model, key, payload);
           state.messages[idx].meta = {};
-          state.messages[idx].content = text || (finish==='SAFETY'
-            ? '_(안전 정책에 의해 응답이 차단되었습니다.)_'
-            : '_(응답이 생성되지 않았습니다.)_');
+          state.messages[idx].content = (finish==='SAFETY')
+            ? SAFETY_FALLBACK
+            : (text || SAFETY_FALLBACK);
           renderChat();
         }catch(e2){
           state.messages[idx].meta = {};
-          state.messages[idx].content = '**오류(폴백 실패)**: ' + e2.message;
+          state.messages[idx].content = SAFETY_FALLBACK;
           renderChat();
         }
       }
@@ -345,7 +396,7 @@
       save('messages',state.messages);
     }catch(err){
       state.messages[idx].meta={};
-      state.messages[idx].content='**오류:** '+err.message;
+      state.messages[idx].content=SAFETY_FALLBACK;
       renderChat();
     }finally{
       controller=null;
@@ -398,13 +449,16 @@
 
     if(files.length===0){
       const keys = Object.values(state.lore.emotionMap||{});
-      const exts = ['.jpg','.jpeg','.png','.gif','.webp'];
-      keys.forEach(k => exts.forEach(ext => files.push(`${base}/${k}${ext}`)));
+      const exts = ['.png','.jpg','.jpeg','.gif','.webp'];
+      keys.forEach(k => {
+        if (/\.(png|jpg|jpeg|gif|webp)$/i.test(k)) files.push(`${base}/${k}`);
+        else exts.forEach(ext => files.push(`${base}/${k}${ext}`));
+      });
     }
 
     const normalize = f => (typeof f === 'string')
-      ? { src: (f.startsWith('http')||f.startsWith('/')) ? f : `${base}/${f}`, tag: tagFromPath(f) }
-      : { src: (f.src && (f.src.startsWith('http')||f.src.startsWith('/'))) ? f.src : `${base}/${f.src}`, tag: f.tag || tagFromPath(f.src) };
+      ? { src: (f.startsWith('http')||f.startsWith('/')) ? f : `${base}/${f.replace(new RegExp(`^${base}/`),'')}`, tag: tagFromPath(f) }
+      : { src: (f.src && (f.src.startsWith('http')||f.src.startsWith('/'))) ? f.src : `${base}/${(f.src||'').replace(new RegExp(`^${base}/`),'')}`, tag: f.tag || tagFromPath(f.src) };
 
     const seen = new Set();
     files.map(normalize).forEach(({src,tag})=>{
