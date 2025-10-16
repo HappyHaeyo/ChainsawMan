@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Reze RP – Gemini 2.5 Pro</title>
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
 <div class="app" id="app">
@@ -72,10 +72,12 @@
     </div>
 
     <div class="card">
-      <h3>감정 매핑(JSON)</h3>
-      <p class="muted">예: {"happy":"reze_happy","sad":"reze_sad","angry":"reze_angry","neutral":"reze_neutral"}</p>
-      <textarea id="emotionMap"></textarea>
-      <div class="row" style="margin-top:8px"><button class="btn" id="saveLore">저장</button></div>
+      <h3>감정 매핑(JSON) <span class="pill">고정됨</span></h3>
+      <p class="muted">이 프로젝트는 감정 매핑을 코드에서 강제 고정합니다. 아래 입력은 보기 전용.</p>
+      <textarea id="emotionMap" disabled></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="saveLore">저장</button>
+      </div>
     </div>
 
     <div class="card" style="grid-column:1 / -1">
@@ -112,35 +114,4 @@
       <div id="gallery" class="gallery" style="margin-top:10px"></div>
     </div>
 
-    <div class="card" style="grid-column:1 / -1">
-      <h3>BGM</h3>
-      <p class="muted">MP3를 <code>assets/bgm/track.mp3</code>로 넣으면 자동재생 시도. 막히면 우하단 버튼 표시.</p>
-      <label>URL (고정)</label>
-      <input id="bgmUrl" type="text" value="assets/bgm/track.mp3" readonly />
-      <div class="row" style="margin-top:8px">
-        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="bgmLoop" checked/> 반복</label>
-        <input id="bgmVol" type="range" min="0" max="1" step="0.01" class="range" style="flex:1" value="0.4"/>
-        <button class="btn" id="bgmPlay">재생/일시정지</button>
-      </div>
-      <audio id="bgmAudio" preload="auto" playsinline></audio>
-    </div>
-  </section>
-</div>
-
-<!-- Lightbox -->
-<div id="lightbox" class="lightbox" aria-modal="true" role="dialog">
-  <div class="frame">
-    <header>
-      <div class="title" id="lightboxTitle"></div>
-      <button class="btn" id="lightboxClose">닫기</button>
-    </header>
-    <div class="body"><img id="lightboxImg" alt="preview"></div>
-  </div>
-</div>
-
-<!-- Autoplay fallback button -->
-<button id="bgmUnmute" class="floating" style="display:none">🔊 BGM 켜기</button>
-
-<script src="app.js?v=7"></script>
-</body>
-</html>
+    <div class="card" style="grid
