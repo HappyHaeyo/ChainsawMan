@@ -25,7 +25,7 @@
     importChat: $('importChat'), importChatFile: $('importChatFile'),
   };
 
-  // State (초기 기본값 포함)
+  // State
   const state = {
     settings: load('settings', {
       apiKey:'', model:'gemini-2.5-pro',
@@ -44,7 +44,7 @@
     messages: load('messages', [])
   };
 
-  // Storage helpers
+  // Storage
   function save(k,v){ localStorage.setItem('reze_'+k, JSON.stringify(v)); }
   function load(k,def){ try{ return JSON.parse(localStorage.getItem('reze_'+k)) ?? def }catch{ return def } }
 
@@ -59,7 +59,7 @@
     return s;
   }
 
-  // --- Tabs
+  // Tabs
   els.tabs.forEach(t => t.addEventListener('click', () => {
     els.tabs.forEach(x => x.classList.remove('active'));
     t.classList.add('active');
@@ -73,7 +73,7 @@
     if(tab) tab.click();
   }
 
-  // --- Sync UI
+  // Sync UI
   function sync(){
     const s = state.settings, L = state.lore;
     els.miniApiKey.value = s.apiKey || '';
@@ -85,11 +85,16 @@
     els.assistantAvatar.value = s.assistantAvatar || '';
     els.greetingText.value = L.greetingText || '';
     els.greetingOn.checked = !!L.greetingOn;
+
+    // 기본 아바타 보정
+    state.settings.userAvatar = state.settings.userAvatar || 'assets/reze/profile/user.png';
+    state.settings.assistantAvatar = state.settings.assistantAvatar || 'assets/reze/profile/reze.png';
+
     renderChat(); renderGallery();
   }
   sync();
 
-  // --- Mini connection
+  // Mini connection
   els.miniSave.onclick = () => {
     state.settings.apiKey = els.miniApiKey.value.trim();
     state.settings.model  = els.miniModel.value.trim() || 'gemini-2.5-pro';
@@ -116,7 +121,7 @@
     setTimeout(()=> els.miniState.textContent='', 4000);
   };
 
-  // --- Editor save
+  // Editor saves
   els.saveLore.onclick = () => {
     state.lore.systemPrompt = els.systemPrompt.value;
     state.lore.worldInfo    = els.worldInfo.value;
@@ -143,7 +148,7 @@
     alert('그리팅 저장됨');
   };
 
-  // --- Chat
+  // Chat helpers
   function extractEmotion(text=''){ const m=text.match(/<emotion:([a-zA-Z_\-]+)>/); return m? m[1].toLowerCase(): null; }
   function roleHtml(role){
     const av = role==='user' ? (state.settings.userAvatar||'') : (state.settings.assistantAvatar||'');
@@ -151,8 +156,9 @@
   }
   function assetUrlForKey(key){
     const base = (els.assetsBase?.value || 'assets/reze').replace(/\/$/,'');
-    return `${base}/${key}.jpg`; // 단순 기본
+    return `${base}/${key}.jpg`;
   }
+
   function renderChat(){
     els.chat.innerHTML='';
     state.messages.forEach(m=>{
@@ -161,6 +167,10 @@
       node.innerHTML = `
         <div class="role">${roleHtml(m.role)}</div>
         <div class="bubble">${md(m.content||'')}</div>`;
+      const bubbleEl = node.querySelector('.bubble');
+      if (m.meta && m.meta.typing) {
+        bubbleEl.innerHTML = '<span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
+      }
       const emo = (m.meta && m.meta.emotion) || extractEmotion(m.content);
       if(m.role==='assistant' && emo){
         const key = (state.lore.emotionMap||{})[emo] || `reze_${emo}`;
@@ -169,7 +179,7 @@
           const img = document.createElement('img');
           img.src = url; img.alt = key;
           img.style = 'display:block;margin:4px 0;max-width:260px;border-radius:12px';
-          node.querySelector('.bubble').prepend(img);
+          bubbleEl.prepend(img);
         }
       }
       els.chat.appendChild(node);
@@ -200,7 +210,12 @@
       systemInstruction: systemInstruction? { role:'system', parts:[{text:systemInstruction}] }: undefined
     };
 
-    addMsg('assistant',''); const idx = state.messages.length-1;
+    // 타이핑 버블 먼저 출력
+    addMsg('assistant','', {typing:true});
+    const idx = state.messages.length-1;
+    renderChat();
+
+    let gotAny = false;
     try{
       const key = state.settings.apiKey || els.miniApiKey.value.trim();
       if(!key) throw new Error('API Key 누락');
@@ -221,14 +236,27 @@
           const data=s.slice(5).trim(); if(!data || data==='[DONE]') continue;
           try{
             const j=JSON.parse(data); const parts=j.candidates?.[0]?.content?.parts||[];
-            for(const p of parts){ if(p.text){ state.messages[idx].content += p.text; } }
+            for(const p of parts){
+              if(p.text){
+                if(!gotAny){ gotAny=true; state.messages[idx].meta={}; state.messages[idx].content=''; }
+                state.messages[idx].content += p.text;
+              }
+            }
             renderChat();
           }catch{}
         }
       }
+      // 스트림 끝, 토큰을 하나도 못 받았으면 이유 힌트
+      if(!gotAny){
+        state.messages[idx].meta={};
+        state.messages[idx].content='_(응답이 생성되지 않았습니다. 키/오리진 제한, 안전차단, 또는 모델명 오류 가능)_';
+        renderChat();
+      }
       save('messages',state.messages);
     }catch(err){
-      state.messages[idx].content='**오류:** '+err.message; renderChat();
+      state.messages[idx].meta={};
+      state.messages[idx].content='**오류:** '+err.message;
+      renderChat();
     }finally{ controller=null; }
   }
   els.send.onclick = send;
@@ -256,7 +284,7 @@
     r.readAsText(file);
   };
 
-  // --- Gallery
+  // Gallery
   els.reload.onclick = renderGallery;
   async function renderGallery(){
     els.gallery.innerHTML='';
@@ -300,7 +328,7 @@
     }catch{ return p; }
   }
 
-  // --- Lightbox
+  // Lightbox
   function openLightbox(src, title){
     $('lightboxImg').src = src;
     $('lightboxTitle').textContent = title || '';
@@ -312,7 +340,7 @@
     if(e.target && e.target.id === 'lightbox') $('lightbox').classList.remove('active');
   });
 
-  // --- BGM (autoplay with fallback)
+  // BGM (autoplay with fallback)
   const DEFAULT_BGM = 'assets/bgm/track.mp3';
   const bgm = load('bgm', { url: DEFAULT_BGM, loop:true, vol:0.4 });
   if (!bgm.url) { bgm.url = DEFAULT_BGM; save('bgm', bgm); }
@@ -354,7 +382,7 @@
     if(audio.paused){ audio.play().catch(()=>{}); } else { audio.pause(); }
   };
 
-  // 첫 로드 시 그리팅 자동 삽입(대화가 비어있으면)
+  // 초기 그리팅(대화가 비어있으면)
   if((state.messages||[]).length===0 && state.lore.greetingOn && state.lore.greetingText){
     state.messages.push({role:'assistant', content: state.lore.greetingText});
     save('messages', state.messages);
